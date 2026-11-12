@@ -5,4 +5,5 @@ exclude =
     __pycache__,
     .venv,
     venv,
-    .pytest_cache
+    .pytest_cache,
+    src/database/migrations
