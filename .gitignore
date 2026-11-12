@@ -13,3 +13,5 @@ wheels/
 db.sqlite
 
 .idea
+
+file.md
