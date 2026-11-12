@@ -33,7 +33,8 @@ router = APIRouter(tags=["reference"])
     status_code=status.HTTP_201_CREATED
 )
 async def add_genre(
-        genre_data: GenreCreateSchema, db: AsyncSession = Depends(get_db_session)
+        genre_data: GenreCreateSchema,
+        db: AsyncSession = Depends(get_db_session)
 ) -> Genre:
     return await create_genre(db, genre_data)
 

@@ -5,8 +5,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Movie
 from database.session import get_db_session
-from crud.movies import get_movie_by_id, get_movie_list, create_movie, update_movie, delete_movie
-from schemas.movies import MovieDetailSchema, MovieListResponseSchema, MovieCreateSchema, MovieUpdateSchema
+from crud.movies import (
+    get_movie_by_id,
+    get_movie_list,
+    create_movie,
+    update_movie,
+    delete_movie,
+)
+from schemas.movies import (
+    MovieDetailSchema,
+    MovieListResponseSchema,
+    MovieCreateSchema,
+    MovieUpdateSchema,
+)
 
 router = APIRouter(prefix="/movies", tags=["movies"])
 
