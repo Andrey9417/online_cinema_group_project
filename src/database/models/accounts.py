@@ -16,6 +16,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.base import Base
+from security.passwords import hash_password
+from security.tokens import generate_token
 
 if TYPE_CHECKING:
     from database.models.carts import Cart
@@ -96,6 +98,18 @@ class User(Base):
     orders: Mapped[list["Order"]] = relationship(back_populates="user")
     payments: Mapped[list["Payment"]] = relationship(back_populates="user")
 
+    @property
+    def password(self) -> None:
+        raise AttributeError("NoNoNo1!1")
+
+    @classmethod
+    def cool_create(cls, email: str, raw_password: str, group_id: int) -> "User":
+        return cls(
+            email=email,
+            group_id=group_id,
+            hashed_password=hash_password(raw_password)
+        )
+
 
 class UserProfile(Base):
     __tablename__ = "user_profiles"
@@ -118,7 +132,11 @@ class TokenBaseModel(Base):
     __abstract__ = True
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    token: Mapped[str] = mapped_column(String(255), unique=True)
+    token: Mapped[str] = mapped_column(
+        String(255),
+        unique=True,
+        default=generate_token
+    )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc) + timedelta(days=1)

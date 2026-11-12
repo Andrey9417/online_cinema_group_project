@@ -13,4 +13,4 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-interaction --no-ansi
 
 COPY src ./src
-COPY alembic.ini ./
+COPY alembic.ini pytest.ini ./

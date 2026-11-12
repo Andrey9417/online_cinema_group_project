@@ -16,6 +16,7 @@ python -m venv .venv
 ```
 
 Activate the venv:
+
 - Windows PowerShell: `.venv\Scripts\Activate.ps1`
 - Linux / macOS: `source .venv/bin/activate`
 
@@ -28,7 +29,6 @@ poetry install
 
 Copy `.env.example` to `.env` (fill in values if needed):
 
-
 ## 3. Run the project
 
 ```bash
@@ -38,6 +38,7 @@ docker compose up --build
 Migrations are applied automatically on start. The app is available at http://localhost:8000/docs.
 
 Useful commands:
+
 - `docker compose logs -f web` - app logs
 - `docker compose down` - stop everything
 - `docker compose down -v` - stop everything and delete the database
@@ -46,7 +47,8 @@ After adding a dependency (`poetry add ...`), run `docker compose up  --build` a
 
 ## 4. Add a new migration
 
-1. Change or add models in `src/database/models/`. A new model must be imported in `src/database/models/__init__.py`. (to be seen by alembic)
+1. Change or add models in `src/database/models/`. A new model must be imported in `src/database/models/__init__.py`. (
+   to be seen by alembic)
 2. Make sure the containers are running, then generate the migration:
    ```bash
    docker compose exec web alembic revision --autogenerate -m "short description"
@@ -54,7 +56,8 @@ After adding a dependency (`poetry add ...`), run `docker compose up  --build` a
 3. Check the new file in `src/migrations/versions/`.
 4. Apply it by restarting docker or upgrading head:
 
-Pull the latest changes before creating a migration. Two people creating migrations from the same base cause a "multiple heads" error.
+Pull the latest changes before creating a migration. Two people creating migrations from the same base cause a "multiple
+heads" error.
 
 ## 5. Connect to the database in PyCharm
 
@@ -62,11 +65,10 @@ The containers must be running.
 
 1. Database tool window, `+`, Data Source, PostgreSQL.
 2. Fill in:
-   - Host: `localhost` (not `postgres_db`)
-   - Port: `5432`
-   - User, Password, Database: values from `.env`
+    - Host: `localhost` (not `postgres_db`)
+    - Port: `5432`
+    - User, Password, Database: values from `.env`
 3. Test Connection, then OK.
-
 
 ## 6. Project structure
 
@@ -89,3 +91,32 @@ The containers must be running.
     ├── schemas/                 # Pydantic schemas
     └── crud/                    # database operations
 ```
+
+## 7. Running tests
+
+Separate docker compose file `docker-compose.test.yml`
+
+```bash
+docker compose -f docker-compose.test.yml run --build --rm tests
+```
+
+This builds the image, starts containers, runs `pytest`, exits and removes container `tests`. Db container keeps working
+so that it was possible to
+run tests locally too via `pytest`.
+
+Override default `pytest` with explicit command:
+
+```bash
+docker compose -f docker-compose.test.yml run --rm tests pytest tests/unit
+```
+
+When you're done, stop the test database:
+
+```bash
+docker compose -f docker-compose.test.yml down -v
+```
+
+Notes:
+
+- Test environment variables live in `pytest.ini`. Compose overrides the host and port for the container.
+
