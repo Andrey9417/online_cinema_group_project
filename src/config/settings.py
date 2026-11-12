@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str
 
+    SENDGRID_API_KEY: str
+    EMAIL_FROM: str
+    API_URL: str
+
     @property
     def DATABASE_URL(self) -> str:
         return (
