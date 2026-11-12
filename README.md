@@ -7,7 +7,7 @@ FastAPI + async SQLAlchemy + Alembic + PostgreSQL, run in Docker, dependencies m
 Requires Python 3.14 and Docker Desktop.
 
 ```bash
-# 1. clone repo
+# 1. clone repo from develop branch (https://github.com/Andrey9417/online_cinema_group_project/tree/develop)
 git clone <repo-url>
 cd online_cinema_group_project
 
