@@ -78,6 +78,13 @@ class MovieListItemSchema(BaseModel):
         "from_attributes": True,
     }
 
+class MovieListResponseSchema(BaseModel):
+    movies: list[MovieListItemSchema]
+    prev_page: str | None
+    next_page: str | None
+    total_pages: int
+    total_items: int
+
 
 class MovieDetailSchema(MovieBaseSchema):
     id: int
