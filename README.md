@@ -119,3 +119,4 @@ docker compose -f docker-compose.test.yml down -v
 Notes:
 
 - Test environment variables live in `pytest.ini`. Compose overrides the host and port for the container.
+
