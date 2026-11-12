@@ -16,7 +16,7 @@ services:
 
   web:
     build: .
-    container_name: backend_theater
+    container_name: backend_cinema
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
       - .env
