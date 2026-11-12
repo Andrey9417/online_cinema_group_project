@@ -1,9 +1,13 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from database.models import User, UserGroup, UserGroupEnum, ActivationToken
-from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, GroupDoesNotExist
+from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, GroupDoesNotExist, InvalidActivationToken, \
+    ActivationTokenExpired, AccountAlreadyActive
 from schemas.accounts import UserRegistrationRequestSchema
 
 
@@ -37,3 +41,25 @@ async def register_user(
         await session.rollback()
         raise SomethingWentWrong("Something went wrong, try again later")
     return user, token
+
+
+async def activate_user(session: AsyncSession, token: str):
+    act_token = await session.scalar(
+        select(ActivationToken)
+        .options(joinedload(ActivationToken.user))
+        .where(ActivationToken.token == token)
+    )
+    if not act_token:
+        raise InvalidActivationToken("Wrong token")
+    if act_token.expires_at < datetime.now(timezone.utc):
+        raise ActivationTokenExpired("Token expired")
+    if act_token.user.is_active:
+        await session.delete(act_token)
+        raise AccountAlreadyActive("Account is already active")
+    try:
+        act_token.user.is_active = True
+        await session.delete(act_token)
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        raise SomethingWentWrong("Something went wrong, try again later")

@@ -10,3 +10,15 @@ class UserEmailAlreadyExist(Exception):
 
 class GroupDoesNotExist(SomethingWentWrong):
     pass
+
+
+class InvalidActivationToken(Exception):
+    pass
+
+
+class ActivationTokenExpired(Exception):
+    pass
+
+
+class AccountAlreadyActive(Exception):
+    pass

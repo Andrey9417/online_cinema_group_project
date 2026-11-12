@@ -3,11 +3,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from crud.accounts import register_user
+from crud.accounts import register_user, activate_user
 from database import get_db_session
-from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong
+from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, InvalidActivationToken, \
+    ActivationTokenExpired, AccountAlreadyActive
 from notifications.emails import send_activation_email
-from schemas.accounts import UserRegistrationResponseSchema, UserRegistrationRequestSchema
+from schemas.accounts import UserRegistrationResponseSchema, UserRegistrationRequestSchema, MessageResponseSchema
 
 router = APIRouter()
 ASession = Annotated[AsyncSession, Depends(get_db_session)]
@@ -37,3 +38,24 @@ async def register_new_user(
         ) from e
     back_manager.add_task(send_activation_email, user.email, act_token.token)
     return UserRegistrationResponseSchema(id=user.id, email=user.email)
+
+
+@router.get(
+    "/activate",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def activate_new_user(session: ASession, token: str):
+    try:
+        await activate_user(session, token)
+    except (InvalidActivationToken, ActivationTokenExpired, AccountAlreadyActive) as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        ) from e
+    except SomethingWentWrong as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) from e
+    return MessageResponseSchema(message="Account activation is a success")
