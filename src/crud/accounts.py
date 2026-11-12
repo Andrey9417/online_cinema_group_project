@@ -1,16 +1,10 @@
-from datetime import datetime, timezone
-from typing import cast, Annotated
-
-from fastapi import APIRouter, Depends, status, HTTPException
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session, joinedload
 
-from database import get_db_session
 from database.models import User, UserGroup, UserGroupEnum, ActivationToken
 from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, GroupDoesNotExist
-from schemas.accounts import UserRegistrationRequestSchema, UserRegistrationResponseSchema
+from schemas.accounts import UserRegistrationRequestSchema
 
 
 async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
