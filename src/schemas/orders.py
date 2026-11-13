@@ -39,3 +39,8 @@ class ExcludedMovieSchema(BaseModel):
 class CreateOrderResponseSchema(BaseModel):
     order: OrderResponseSchema
     excluded_movies: list[ExcludedMovieSchema]
+
+class OrderListResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    orders: list[OrderResponseSchema]

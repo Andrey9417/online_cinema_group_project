@@ -1,13 +1,32 @@
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from crud.orders import get_movies_by_user_id_and_order_status, create_db_order, cancel_order, get_order_by_id
+from crud.orders import (
+    get_movies_by_user_id_and_order_status,
+    create_db_order,
+    cancel_order,
+    get_order_by_id,
+    get_orders
+)
 from database.models import Order, Cart, OrderItem, OrderStatusEnum, CartItem
-from exceptions.orders import CartNotFound, CartIsEmpty, NoAvailableMovies, OrderCannotBeCanceled, OrderDoNotExist
-from schemas.orders import CreateOrderResponseSchema, ExcludedMovieReasonEnum, OrderResponseSchema
+from exceptions.orders import (
+    CartNotFound,
+    CartIsEmpty,
+    NoAvailableMovies,
+    OrderCannotBeCanceled,
+    OrderDoNotExist,
+    InvalidDateRange
+)
+from schemas.orders import (
+    CreateOrderResponseSchema,
+    ExcludedMovieReasonEnum,
+    OrderResponseSchema,
+    OrderListResponseSchema
+)
 
 
 async def create_order_service(db: AsyncSession, user_id: int) -> CreateOrderResponseSchema:
@@ -68,7 +87,8 @@ async def create_order_service(db: AsyncSession, user_id: int) -> CreateOrderRes
     try:
         db_order = await create_db_order(db=db, order=order)
 
-        # cleaning shopping cart
+        # Remove successfully ordered movies from the cart.
+        # Excluded movies remain so the user can decide what to do with them.
         for item in available_items:
             await db.delete(item)
 
@@ -106,3 +126,33 @@ async def cancel_order_service(order_id: int, user_id: int, db: AsyncSession) ->
     except Exception:
         await db.rollback()
         raise
+
+
+async def get_orders_service(
+        db: AsyncSession,
+        skip: int = 0,
+        limit: int = 20,
+        user_id: int | None = None,
+        status: OrderStatusEnum | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+) -> OrderListResponseSchema:
+    if (
+            start_date is not None
+            and end_date is not None
+            and start_date > end_date
+    ):
+        raise InvalidDateRange
+
+    orders = await get_orders(
+        db=db,
+        skip=skip,
+        limit=limit,
+        user_id=user_id,
+        status=status,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    return OrderListResponseSchema(orders=orders)
+

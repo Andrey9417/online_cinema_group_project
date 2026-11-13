@@ -18,13 +18,6 @@ async def get_orders(
         end_date: datetime | None = None,
 ) -> list[Order]:
 
-    if (
-            start_date is not None
-            and end_date is not None
-            and start_date > end_date
-    ):
-        raise InvalidDateRange
-
     stmt = select(Order)
     if user_id is not None:
         stmt = stmt.where(Order.user_id == user_id)
