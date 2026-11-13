@@ -33,5 +33,9 @@ class UserRegistrationResponseSchema(BaseModel):
     email: EmailStr
 
 
+class UserResendActivationSchema(BaseModel):
+    email: EmailStr
+
+
 class MessageResponseSchema(BaseModel):
     message: str

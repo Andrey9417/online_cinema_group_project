@@ -8,6 +8,10 @@ class UserEmailAlreadyExist(Exception):
     pass
 
 
+class UserWithEmailDoesNotExist(Exception):
+    pass
+
+
 class GroupDoesNotExist(SomethingWentWrong):
     pass
 

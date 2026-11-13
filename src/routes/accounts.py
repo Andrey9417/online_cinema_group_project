@@ -3,12 +3,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from crud.accounts import register_user, activate_user
+from crud.accounts import register_user, activate_user, send_activation_again
 from database import get_db_session
 from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, InvalidActivationToken, \
-    ActivationTokenExpired, AccountAlreadyActive
+    ActivationTokenExpired, AccountAlreadyActive, UserWithEmailDoesNotExist
 from notifications.emails import send_activation_email
-from schemas.accounts import UserRegistrationResponseSchema, UserRegistrationRequestSchema, MessageResponseSchema
+from schemas.accounts import UserRegistrationResponseSchema, UserRegistrationRequestSchema, MessageResponseSchema, \
+    UserResendActivationSchema
 
 router = APIRouter()
 ASession = Annotated[AsyncSession, Depends(get_db_session)]
@@ -59,3 +60,27 @@ async def activate_new_user(session: ASession, token: str):
             detail=str(e)
         ) from e
     return MessageResponseSchema(message="Account activation is a success")
+
+
+@router.post(
+    "/resend-activation",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def send_user_activation_again(
+        session: ASession,
+        user_email: UserResendActivationSchema,
+        back_manager: BackgroundTasks  # will change to Celery later
+):
+    try:
+        user, token = await send_activation_again(session, user_email)
+    except (UserWithEmailDoesNotExist, AccountAlreadyActive):  # log it?
+        """Returns 200 cuz safety reasons"""
+        return MessageResponseSchema(message="Check your email for the new activation link")
+    except SomethingWentWrong as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) from e
+    back_manager.add_task(send_activation_email, user.email, token.token)
+    return MessageResponseSchema(message="Check your email for the new activation link")
