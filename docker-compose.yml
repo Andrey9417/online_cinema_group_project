@@ -1,3 +1,19 @@
+x-app: &celery-app
+  build: .
+  env_file:
+    - .env
+  volumes:
+    - ./src:/app/src
+  depends_on:
+    postgres_db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    migrator:
+      condition: service_completed_successfully
+  restart: unless-stopped
+
+
 services:
   postgres_db:
     image: postgres:18
@@ -10,7 +26,7 @@ services:
       - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
 
@@ -29,6 +45,8 @@ services:
     depends_on:
       postgres_db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       migrator:
         condition: service_completed_successfully
 
@@ -45,5 +63,55 @@ services:
       postgres_db:
         condition: service_healthy
 
+  redis:
+    image: redis:7
+    healthcheck:
+      test: [ "CMD-SHELL", "redis-cli ping | grep PONG" ]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  celery_worker:
+    <<: *celery-app
+    command: celery -A config.celery:celery_app worker -l info
+
+  celery_beat:
+    <<: *celery-app
+    command: celery -A config.celery:celery_app beat -l info
+
+  minio:
+    image: pgsty/minio:latest
+    command: server --console-address ":9001" /data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    env_file:
+      - .env
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio_mc:
+    build:
+      context: .
+      dockerfile: docker/minio_mc/Dockerfile
+    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh" ]
+    restart: "no"
+    env_file:
+      - .env
+    depends_on:
+      minio:
+        condition: service_healthy
+
 volumes:
   postgres_data:
+  redis_data:
+  minio_data:
