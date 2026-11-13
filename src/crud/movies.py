@@ -1,7 +1,16 @@
 from sqlalchemy import select, func, insert, delete, asc, desc
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
-from database.models.movies import Movie, Genre, Director, Star, FavoriteMoviesTable
+from database.models.movies import (
+    Movie,
+    Genre,
+    Director,
+    Star,
+    FavoriteMoviesTable,
+    movie_genres,
+    MovieRating,
+)
 from schemas.movies import MovieCreateSchema, MovieUpdateSchema
 from collections.abc import Sequence
 
@@ -185,3 +194,123 @@ async def get_favorite_movies(
     )
     movies = (await db.execute(stmt)).scalars().all()
     return movies, total
+
+
+async def get_genres_with_count(db: AsyncSession):
+    stmt = (
+        select(
+            Genre.id,
+            Genre.name,
+            func.count(movie_genres.c.movie_id).label("movies_count"),
+        )
+        .outerjoin(movie_genres, movie_genres.c.genre_id == Genre.id)
+        .group_by(Genre.id, Genre.name)
+        .order_by(Genre.name)
+    )
+    result = await db.execute(stmt)
+    return result.all()
+
+
+async def get_genre_by_id(db: AsyncSession, genre_id: int) -> Genre | None:
+    return await db.get(Genre, genre_id)
+
+
+async def get_movies_by_genre(
+    db: AsyncSession, genre_id: int, page: int = 1, per_page: int = 10
+) -> tuple[list[Movie], int]:
+    base = (
+        select(Movie)
+        .join(movie_genres, movie_genres.c.movie_id == Movie.id)
+        .where(movie_genres.c.genre_id == genre_id)
+    )
+
+    total = await db.scalar(select(func.count()).select_from(base.subquery()))
+
+    stmt = base.order_by(Movie.id).offset((page - 1) * per_page).limit(per_page)
+    movies = (await db.execute(stmt)).scalars().all()
+
+    return movies, total
+
+
+async def set_rating(db: AsyncSession, user_id: int, movie_id: int, rating: int) -> None:
+    existing = await db.get(MovieRating, (user_id, movie_id))
+
+    if existing:
+        existing.rating = rating
+    else:
+        db.add(MovieRating(user_id=user_id, movie_id=movie_id, rating=rating))
+
+    await db.commit()
+
+
+async def remove_rating(db: AsyncSession, user_id: int, movie_id: int) -> bool:
+    result = await db.execute(
+        delete(MovieRating).where(
+            MovieRating.user_id == user_id,
+            MovieRating.movie_id == movie_id,
+        )
+    )
+    await db.commit()
+    return result.rowcount > 0
+
+
+async def create_genre(db: AsyncSession, name: str) -> Genre | None:
+    genre = Genre(name=name)
+    db.add(genre)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return None
+    await db.refresh(genre)
+    return genre
+
+
+async def update_genre(db: AsyncSession, genre: Genre, name: str) -> bool:
+    genre.name = name
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return False
+    await db.refresh(genre)
+    return True
+
+
+async def delete_genre(db: AsyncSession, genre_id: int) -> bool:
+    result = await db.execute(delete(Genre).where(Genre.id == genre_id))
+    await db.commit()
+    return result.rowcount > 0
+
+
+async def get_star_by_id(db: AsyncSession, star_id: int) -> Star | None:
+    return await db.get(Star, star_id)
+
+
+async def create_star(db: AsyncSession, name: str) -> Star | None:
+    star = Star(name=name)
+    db.add(star)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return None
+    await db.refresh(star)
+    return star
+
+
+async def update_star(db: AsyncSession, star: Star, name: str) -> bool:
+    star.name = name
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return False
+    await db.refresh(star)
+    return True
+
+
+async def delete_star(db: AsyncSession, star_id: int) -> bool:
+    result = await db.execute(delete(Star).where(Star.id == star_id))
+    await db.commit()
+    return result.rowcount > 0

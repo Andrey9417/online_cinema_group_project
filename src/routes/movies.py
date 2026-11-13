@@ -1,9 +1,9 @@
-import math
 from math import ceil
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.models import Movie
-from dependencies import get_db_session
+from config.dependencies import get_db_session, get_current_user
+from dependencies import require_moderator
 from typing import Literal
 from crud.movies import (
     get_movie_by_id,
@@ -11,12 +11,24 @@ from crud.movies import (
     create_movie,
     update_movie,
     delete_movie,
+    add_favorite,
+    remove_favorite,
+    get_favorite_movies,
+    get_genre_by_id,
+    get_movies_by_genre,
+    get_genres_with_count,
+    set_rating,
+    remove_rating, get_star_by_id,
 )
+from models import User
 from schemas.movies import (
     MovieDetailSchema,
     MovieListResponseSchema,
     MovieCreateSchema,
     MovieUpdateSchema,
+    MessageResponseSchema,
+    GenreWithCountSchema,
+    MovieRatingSchema, GenreCreateSchema, GenreSchema, StarCreateSchema, StarSchema,
 )
 
 router = APIRouter(prefix="/movies", tags=["movies"])
@@ -51,10 +63,10 @@ async def list_favorites(
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
-    movies, total = await crud.get_favorite_movies(
+    movies, total = await get_favorite_movies(
         db, current_user.id, page, per_page, search, year, min_imdb, sort_by, order
     )
-    total_pages = math.ceil(total / per_page)
+    total_pages = ceil(total / per_page)
 
     return {
         "movies": movies,
@@ -128,3 +140,166 @@ async def remove_movie(
     deleted = await delete_movie(db, movie_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Movie not found")
+
+
+@router.post(
+    "/movies/{movie_id}/favorite/",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_to_favorites(
+    movie_id: int,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    if not await db.get(Movie, movie_id):
+        raise HTTPException(status_code=404, detail="Movie not found.")
+
+    if not await add_favorite(db, current_user.id, movie_id):
+        raise HTTPException(status_code=409, detail="Movie is already in favorites.")
+
+    return {"detail": "Movie added to favorites."}
+
+
+@router.delete("/movies/{movie_id}/favorite/", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_from_favorites(
+    movie_id: int,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    if not await remove_favorite(db, current_user.id, movie_id):
+        raise HTTPException(status_code=404, detail="Movie is not in favorites.")
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/genres/", response_model=list[GenreWithCountSchema])
+async def list_genres(db: AsyncSession = Depends(get_db_session)):
+    return await get_genres_with_count(db)
+
+
+@router.get("/genres/{genre_id}/movies/", response_model=MovieListResponseSchema)
+async def list_genre_movies(
+    genre_id: int,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=20),
+    db: AsyncSession = Depends(get_db_session),
+):
+    if not await get_genre_by_id(db, genre_id):
+        raise HTTPException(status_code=404, detail="Genre not found.")
+
+    movies, total = await get_movies_by_genre(db, genre_id, page, per_page)
+    total_pages = ceil(total / per_page)
+
+    base = f"/genres/{genre_id}/movies/"
+    return {
+        "movies": movies,
+        "prev_page": f"{base}?page={page - 1}&per_page={per_page}" if page > 1 else None,
+        "next_page": f"{base}?page={page + 1}&per_page={per_page}" if page < total_pages else None,
+        "total_pages": total_pages,
+        "total_items": total,
+    }
+
+
+@router.put("/movies/{movie_id}/rating/", response_model=MessageResponseSchema)
+async def rate_movie(
+    movie_id: int,
+    data: MovieRatingSchema,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    if not await db.get(Movie, movie_id):
+        raise HTTPException(status_code=404, detail="Movie not found.")
+
+    await set_rating(db, current_user.id, movie_id, data.rating)
+    return {"detail": "Rating saved."}
+
+
+@router.delete("/movies/{movie_id}/rating/", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_movie_rating(
+    movie_id: int,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    if not await remove_rating(db, current_user.id, movie_id):
+        raise HTTPException(status_code=404, detail="Rating not found.")
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/genres/", response_model=GenreSchema, status_code=status.HTTP_201_CREATED)
+async def create_genre(
+    data: GenreCreateSchema,
+    db: AsyncSession = Depends(get_db_session),
+    moderator: User = Depends(require_moderator),
+):
+    genre = await create_genre(db, data.name)
+    if genre is None:
+        raise HTTPException(status_code=409, detail="Genre with this name already exists.")
+    return genre
+
+
+@router.put("/genres/{genre_id}/", response_model=GenreSchema)
+async def update_genre(
+    genre_id: int,
+    data: GenreCreateSchema,
+    db: AsyncSession = Depends(get_db_session),
+    moderator: User = Depends(require_moderator),
+):
+    genre = await get_genre_by_id(db, genre_id)
+    if genre is None:
+        raise HTTPException(status_code=404, detail="Genre not found.")
+
+    if not await update_genre(db, genre, data.name):
+        raise HTTPException(status_code=409, detail="Genre with this name already exists.")
+    return genre
+
+
+@router.delete("/genres/{genre_id}/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_genre(
+    genre_id: int,
+    db: AsyncSession = Depends(get_db_session),
+    moderator: User = Depends(require_moderator),
+):
+    if not await delete_genre(db, genre_id):
+        raise HTTPException(status_code=404, detail="Genre not found.")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/stars/", response_model=StarSchema, status_code=status.HTTP_201_CREATED)
+async def create_star(
+    data: StarCreateSchema,
+    db: AsyncSession = Depends(get_db_session),
+    moderator: User = Depends(require_moderator),
+):
+    star = await create_star(db, data.name)
+    if star is None:
+        raise HTTPException(status_code=409, detail="Star with this name already exists.")
+    return star
+
+
+@router.put("/stars/{star_id}/", response_model=StarSchema)
+async def update_star(
+    star_id: int,
+    data: StarCreateSchema,
+    db: AsyncSession = Depends(get_db_session),
+    moderator: User = Depends(require_moderator),
+):
+    star = await get_star_by_id(db, star_id)
+    if star is None:
+        raise HTTPException(status_code=404, detail="Star not found.")
+
+    if not await update_star(db, star, data.name):
+        raise HTTPException(status_code=409, detail="Star with this name already exists.")
+    return star
+
+
+@router.delete("/stars/{star_id}/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_star(
+    star_id: int,
+    db: AsyncSession = Depends(get_db_session),
+    moderator: User = Depends(require_moderator),
+):
+    if not await delete_star(db, star_id):
+        raise HTTPException(status_code=404, detail="Star not found.")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

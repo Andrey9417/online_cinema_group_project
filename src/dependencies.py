@@ -1,13 +1,9 @@
-from fastapi import Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from database import get_db_session
+from fastapi import Depends
+from config.dependencies import get_current_user
 from models import User
 
-MOCK_USER_ID = 1
 
-
-async def get_current_user(db: AsyncSession = Depends(get_db_session)) -> User:
-    user = await db.get(User, MOCK_USER_ID)
-    if not user:
-        raise HTTPException(status_code=401, detail="Mock user not found.")
-    return user
+async def require_moderator(current_user: User = Depends(get_current_user)) -> User:
+    # TODO: коли з'явиться справжній логін, перевіряти, що група користувача MODERATOR або ADMIN,
+    # інакше кидати HTTPException(status_code=403, detail="Not enough permissions.")
+    return current_user
