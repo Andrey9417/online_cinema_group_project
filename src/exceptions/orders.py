@@ -8,3 +8,15 @@ class InvalidDateRange(Exception):
 
 class OrderCannotBeCanceled(Exception):
     pass
+
+
+class CartNotFound(Exception):
+    pass
+
+
+class CartIsEmpty(Exception):
+    pass
+
+
+class NoAvailableMovies(Exception):
+    pass

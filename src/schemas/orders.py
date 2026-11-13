@@ -1,5 +1,6 @@
 import decimal
 from datetime import datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
@@ -23,3 +24,18 @@ class OrderResponseSchema(BaseModel):
     status: OrderStatusEnum
     total_amount: decimal.Decimal
     items: list[OrderItemResponseSchema] # or list[int]
+
+
+class ExcludedMovieReasonEnum(StrEnum):
+    ALREADY_PURCHASED = "already_purchased"
+    ALREADY_IN_PENDING_ORDER = "already_in_pending_order"
+
+
+class ExcludedMovieSchema(BaseModel):
+    movie_id: int
+    reason: ExcludedMovieReasonEnum
+
+
+class CreateOrderResponseSchema(BaseModel):
+    order: OrderResponseSchema
+    excluded_movies: list[ExcludedMovieSchema]

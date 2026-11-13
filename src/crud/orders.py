@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database.models import Order, OrderStatusEnum, OrderItem
-from exceptions.orders import OrderDoNotExist, InvalidDateRange, OrderCannotBeCanceled
+from exceptions.orders import InvalidDateRange
 
 
 async def get_orders(
@@ -54,7 +54,7 @@ async def get_order_by_id(
         order_id: int,
         user_id: int | None = None,
         for_update: bool = False,
-) -> Order:
+) -> Order | None:
     stmt = (
         select(Order)
         .where(Order.id == order_id)
@@ -68,9 +68,6 @@ async def get_order_by_id(
         stmt = stmt.with_for_update()
 
     order = await db.scalar(stmt)
-
-    if order is None:
-        raise OrderDoNotExist
 
     return order
 
@@ -100,19 +97,21 @@ async def create_db_order(
 
 async def cancel_order(
         db: AsyncSession,
-        order_id: int,
-        user_id: int | None = None,
+        order: Order,
 ) -> Order:
-    order = await get_order_by_id(
-        db=db,
-        order_id=order_id,
-        user_id=user_id,
-        for_update=True
-    )
-
-    if order.status != OrderStatusEnum.PENDING:
-        raise OrderCannotBeCanceled("Only pending orders can be canceled.")
-
     order.status = OrderStatusEnum.CANCELED
     await db.flush()
     return order
+
+
+async def get_movies_by_user_id_and_order_status(
+        db: AsyncSession,
+        order_status: OrderStatusEnum,
+        user_id: int,
+) -> set[int]:
+    movie_ids = await db.scalars(
+        select(OrderItem.movie_id)
+        .join(Order, OrderItem.order_id == Order.id)
+        .where(Order.user_id == user_id, Order.status == order_status)
+    )
+    return set(movie_ids.all())
