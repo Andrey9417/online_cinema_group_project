@@ -3,12 +3,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from crud.accounts import register_user, activate_user, send_activation_again
+from crud.accounts import register_user, activate_user, send_activation_again, login_user, refresh_token, logout_user
 from database import get_db_session
 from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, InvalidActivationToken, \
-    ActivationTokenExpired, AccountAlreadyActive, UserWithEmailDoesNotExist
+    ActivationTokenExpired, AccountAlreadyActive, UserWithEmailDoesNotExist, InvalidUserCredentials, AccountNotActive, \
+    InvalidJWTToken, ExpiredJWTToken
 from schemas.accounts import UserRegistrationResponseSchema, UserRegistrationRequestSchema, MessageResponseSchema, \
-    UserResendActivationSchema
+    UserResendActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserTokenRefreshRequestSchema, \
+    UserTokenRefreshResponseSchema, UserLogoutRequestSchema
 from tasks.emails import send_activation_email_task
 
 router = APIRouter()
@@ -82,3 +84,61 @@ async def send_user_activation_again(
         ) from e
     send_activation_email_task.delay(user.email, token.token)
     return MessageResponseSchema(message="Check your email for the new activation link")
+
+
+@router.post(
+    "/login",
+    response_model=UserLoginResponseSchema,
+    status_code=status.HTTP_201_CREATED
+)
+async def good_login_user(session: ASession, user_data: UserLoginRequestSchema):
+    try:
+        acc_token, ref_token = await login_user(session, user_data)
+    except InvalidUserCredentials as e:
+        raise HTTPException(
+            status_code=401,
+            detail=str(e)
+        ) from e
+    except AccountNotActive as e:
+        raise HTTPException(
+            status_code=403,
+            detail=str(e)
+        ) from e
+    except SomethingWentWrong as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) from e
+    return UserLoginResponseSchema(access_token=acc_token, refresh_token=ref_token.token)
+
+
+@router.post(
+    "/refresh-token",
+    response_model=UserTokenRefreshResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def good_refresh_token(session: ASession, token: UserTokenRefreshRequestSchema):
+    try:
+        acc_token = await refresh_token(session, token)
+    except (InvalidJWTToken, ExpiredJWTToken) as e:
+        raise HTTPException(
+            status_code=401,
+            detail=str(e)
+        ) from e
+    return UserTokenRefreshResponseSchema(access_token=acc_token)
+
+
+@router.post(
+    "/logout",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def good_logout_user(session: ASession, user_data: UserLogoutRequestSchema):
+    try:
+        await logout_user(session, user_data)
+    except SomethingWentWrong as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) from e
+    return MessageResponseSchema(message="Come back =(")

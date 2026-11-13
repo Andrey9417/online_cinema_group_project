@@ -2,7 +2,7 @@ import pytest
 
 from database.models import User
 from security.passwords import hash_password, verify_password
-from security.tokens import generate_token
+from security.tokens import generate_regular_token
 
 
 def test_hash_password_is_not_plain_text_and_verifies():
@@ -18,7 +18,7 @@ def test_hash_password_is_salted():
 
 
 def test_generate_token_is_unique_and_url_safe():
-    tokens = {generate_token() for _ in range(100)}
+    tokens = {generate_regular_token() for _ in range(100)}
 
     assert len(tokens) == 100
     for token in tokens:
@@ -27,7 +27,7 @@ def test_generate_token_is_unique_and_url_safe():
 
 
 def test_generate_token_custom_length():
-    assert len(generate_token(16)) == 22
+    assert len(generate_regular_token(16)) == 22
 
 
 def test_user_cool_create_hashes_password():

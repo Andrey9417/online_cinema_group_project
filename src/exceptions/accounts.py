@@ -26,3 +26,19 @@ class ActivationTokenExpired(Exception):
 
 class AccountAlreadyActive(Exception):
     pass
+
+
+class AccountNotActive(Exception):
+    pass
+
+
+class InvalidJWTToken(Exception):
+    pass
+
+
+class ExpiredJWTToken(Exception):
+    pass
+
+
+class InvalidUserCredentials(Exception):
+    pass
