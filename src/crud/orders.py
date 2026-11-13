@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database.models import Order, OrderStatusEnum, OrderItem
-from exceptions.orders import InvalidDateRange
 
 
 async def get_orders(

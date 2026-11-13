@@ -155,4 +155,3 @@ async def get_orders_service(
     )
 
     return OrderListResponseSchema(orders=orders)
-
