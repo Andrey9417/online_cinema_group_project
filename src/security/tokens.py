@@ -31,7 +31,7 @@ def generate_jwt_token(user_id: int, token_type: JWTTokenTypes, lifetime: timede
 
 def create_access_token(user_id: int):
     return generate_jwt_token(
-        user_id, JWTTokenTypes.ACCESS, timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
+        user_id, JWTTokenTypes.ACCESS, timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
 

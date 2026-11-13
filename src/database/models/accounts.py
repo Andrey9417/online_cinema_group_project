@@ -18,7 +18,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.base import Base
 from security.passwords import hash_password
 from security.tokens import generate_regular_token
-from config.settings import settings
 
 if TYPE_CHECKING:
     from database.models.carts import Cart
@@ -168,10 +167,6 @@ class RefreshToken(TokenBaseModel):
     __tablename__ = "refresh_tokens"
 
     token: Mapped[str] = mapped_column(String(512), unique=True)
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
 
     user: Mapped["User"] = relationship(back_populates="refresh_tokens")
