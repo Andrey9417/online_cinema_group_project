@@ -16,13 +16,3 @@ AsyncSessionLocal = async_sessionmaker(
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
-
-
-MOCK_USER_ID = 1
-
-
-async def get_current_user(db: AsyncSession = Depends(get_db_session)) -> User:
-    user = await db.get(User, MOCK_USER_ID)
-    if not user:
-        raise HTTPException(status_code=401, detail="Mock user not found.")
-    return user
