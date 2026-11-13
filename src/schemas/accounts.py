@@ -33,5 +33,14 @@ class UserRegistrationResponseSchema(BaseModel):
     email: EmailStr
 
 
+class UserResendActivationSchema(BaseModel):
+    email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, user_email: EmailStr):
+        return user_email.lower()
+
+
 class MessageResponseSchema(BaseModel):
     message: str
