@@ -15,7 +15,7 @@ from database.models import (
     UserGroup,
     UserGroupEnum,
 )
-from security.tokens import generate_token
+from security.tokens import generate_regular_token
 from tasks.tokens import _task_delete_expired_token, delete_expired_tokens
 
 
@@ -46,8 +46,8 @@ async def committed_tokens(engine):
             ActivationToken(user_id=bob.id, expires_at=future),
             PasswordResetToken(user_id=alice.id, expires_at=future),
             PasswordResetToken(user_id=bob.id, expires_at=past),
-            RefreshToken(user_id=alice.id, token=generate_token(), expires_at=past),
-            RefreshToken(user_id=alice.id, token=generate_token(), expires_at=future),
+            RefreshToken(user_id=alice.id, token=generate_regular_token(), expires_at=past),
+            RefreshToken(user_id=alice.id, token=generate_regular_token(), expires_at=future),
         ])
         await s.commit()
 

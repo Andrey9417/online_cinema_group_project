@@ -17,7 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.base import Base
 from security.passwords import hash_password
-from security.tokens import generate_token
+from security.tokens import generate_regular_token
 
 if TYPE_CHECKING:
     from database.models.carts import Cart
@@ -135,7 +135,7 @@ class TokenBaseModel(Base):
     token: Mapped[str] = mapped_column(
         String(255),
         unique=True,
-        default=generate_token
+        default=generate_regular_token
     )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
