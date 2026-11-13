@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     EMAIL_FROM: str
     API_URL: str
 
+    REDIS_URL: str = "redis://redis:6379/0"
+
     @property
     def DATABASE_URL(self) -> str:
         return (

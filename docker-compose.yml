@@ -1,3 +1,19 @@
+x-app: &celery-app
+  build: .
+  env_file:
+    - .env
+  volumes:
+    - ./src:/app/src
+  depends_on:
+    postgres_db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    migrator:
+      condition: service_completed_successfully
+  restart: unless-stopped
+
+
 services:
   postgres_db:
     image: postgres:18
@@ -29,6 +45,8 @@ services:
     depends_on:
       postgres_db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       migrator:
         condition: service_completed_successfully
 
@@ -45,5 +63,29 @@ services:
       postgres_db:
         condition: service_healthy
 
+  redis:
+    image: redis:7
+    healthcheck:
+      test: [ "CMD-SHELL", "redis-cli ping | grep PONG" ]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  celery_worker:
+    <<: *celery-app
+    container_name: celery_worker
+    command: celery -A config.celery:celery_app worker -l info
+
+  celery_beat:
+    <<: *celery-app
+    container_name: celery_beat
+    command: celery -A config.celery:celery_app beat -l info
+
 volumes:
   postgres_data:
+  redis_data:
