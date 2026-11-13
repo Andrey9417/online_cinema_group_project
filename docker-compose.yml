@@ -70,7 +70,6 @@ services:
       interval: 1s
       timeout: 3s
       retries: 5
-    container_name: redis
     ports:
       - "6379:6379"
     volumes:
@@ -78,12 +77,10 @@ services:
 
   celery_worker:
     <<: *celery-app
-    container_name: celery_worker
     command: celery -A config.celery:celery_app worker -l info
 
   celery_beat:
     <<: *celery-app
-    container_name: celery_beat
     command: celery -A config.celery:celery_app beat -l info
 
 volumes:
