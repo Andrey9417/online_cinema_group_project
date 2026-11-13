@@ -3,14 +3,17 @@ import re
 from pydantic import BaseModel, EmailStr, field_validator
 
 
-class UserRegistrationRequestSchema(BaseModel):
+class UserEmailSchema(BaseModel):
     email: EmailStr
-    raw_password: str
 
     @field_validator("email")
     @classmethod
     def validate_email(cls, user_email: EmailStr):
         return user_email.lower()
+
+
+class UserRegistrationRequestSchema(UserEmailSchema):
+    raw_password: str
 
     @field_validator("raw_password")
     @classmethod
@@ -33,5 +36,32 @@ class UserRegistrationResponseSchema(BaseModel):
     email: EmailStr
 
 
+class UserResendActivationSchema(UserEmailSchema):
+    pass
+
+
 class MessageResponseSchema(BaseModel):
     message: str
+
+
+class UserLoginRequestSchema(UserEmailSchema):
+    raw_password: str
+
+
+class UserLoginResponseSchema(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class UserTokenRefreshRequestSchema(BaseModel):
+    refresh_token: str
+
+
+class UserTokenRefreshResponseSchema(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserLogoutRequestSchema(UserTokenRefreshRequestSchema):
+    pass
