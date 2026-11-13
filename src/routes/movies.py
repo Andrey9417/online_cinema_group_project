@@ -3,7 +3,7 @@ from math import ceil
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.models import Movie
-from database.session import get_db_session
+from dependencies import get_db_session
 from typing import Literal
 from crud.movies import (
     get_movie_by_id,

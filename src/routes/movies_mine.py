@@ -1,5 +1,5 @@
 import math
-from database.session import get_current_user
+from dependencies import get_current_user
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
