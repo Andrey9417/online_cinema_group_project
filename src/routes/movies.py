@@ -1,10 +1,10 @@
+import math
 from math import ceil
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from database.models import Movie
 from database.session import get_db_session
+from typing import Literal
 from crud.movies import (
     get_movie_by_id,
     get_movie_list,
@@ -37,6 +37,32 @@ async def movie_detail(
 
     return movie
 
+
+
+@router.get("/movies/favorites/", response_model=MovieListResponseSchema)
+async def list_favorites(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=20),
+    search: str | None = Query(None),
+    year: int | None = Query(None),
+    min_imdb: float | None = Query(None, ge=0, le=10),
+    sort_by: Literal["price", "year", "imdb", "popularity"] = "year",
+    order: Literal["asc", "desc"] = "desc",
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    movies, total = await crud.get_favorite_movies(
+        db, current_user.id, page, per_page, search, year, min_imdb, sort_by, order
+    )
+    total_pages = math.ceil(total / per_page)
+
+    return {
+        "movies": movies,
+        "prev_page": f"/movies/favorites/?page={page - 1}&per_page={per_page}" if page > 1 else None,
+        "next_page": f"/movies/favorites/?page={page + 1}&per_page={per_page}" if page < total_pages else None,
+        "total_pages": total_pages,
+        "total_items": total,
+    }
 
 @router.get("/", response_model=MovieListResponseSchema)
 async def movie_list(

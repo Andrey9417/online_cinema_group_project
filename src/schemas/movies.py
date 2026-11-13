@@ -121,3 +121,6 @@ class MovieUpdateSchema(BaseModel):
     genre_ids: list[int] | None = None
     star_ids: list[int] | None = None
     director_ids: list[int] | None = None
+
+class MessageResponseSchema(BaseModel):
+    detail: str

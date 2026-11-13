@@ -1,8 +1,7 @@
-from sqlalchemy import select, func
+from sqlalchemy import select, func, insert, delete, asc, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
-
-from database.models.movies import Movie, Genre, Director, Star
+from database.models.movies import Movie, Genre, Director, Star, FavoriteMoviesTable
 from schemas.movies import MovieCreateSchema, MovieUpdateSchema
 from collections.abc import Sequence
 
@@ -109,3 +108,80 @@ async def delete_movie(db: AsyncSession, movie_id: int) -> bool:
     await db.delete(movie)
     await db.commit()
     return True
+
+
+SORT_FIELDS = {
+    "price": Movie.price,
+    "year": Movie.year,
+    "imdb": Movie.imdb,
+    "popularity": Movie.votes,
+}
+
+
+async def add_favorite(db: AsyncSession, user_id: int, movie_id: int) -> bool:
+    exists = await db.scalar(
+        select(FavoriteMoviesTable.c.movie_id).where(
+            FavoriteMoviesTable.c.user_id == user_id,
+            FavoriteMoviesTable.c.movie_id == movie_id,
+        )
+    )
+    if exists:
+        return False
+
+    await db.execute(insert(FavoriteMoviesTable).values(user_id=user_id, movie_id=movie_id))
+    await db.commit()
+    return True
+
+
+async def remove_favorite(db: AsyncSession, user_id: int, movie_id: int) -> bool:
+    result = await db.execute(
+        delete(FavoriteMoviesTable).where(
+            FavoriteMoviesTable.c.user_id == user_id,
+            FavoriteMoviesTable.c.movie_id == movie_id,
+        )
+    )
+    await db.commit()
+    return result.rowcount > 0
+
+
+async def get_favorite_movies(
+    db: AsyncSession,
+    user_id: int,
+    page: int,
+    per_page: int,
+    search: str | None = None,
+    year: int | None = None,
+    min_imdb: float | None = None,
+    sort_by: str = "year",
+    order: str = "desc",
+) -> tuple[list[Movie], int]:
+    conditions = [FavoriteMoviesTable.c.user_id == user_id]
+
+    if search:
+        like = f"%{search}%"
+        conditions.append(
+            Movie.name.ilike(like)
+            | Movie.description.ilike(like)
+            | Movie.stars.any(Star.name.ilike(like))
+            | Movie.directors.any(Director.name.ilike(like))
+        )
+    if year is not None:
+        conditions.append(Movie.year == year)
+    if min_imdb is not None:
+        conditions.append(Movie.imdb >= min_imdb)
+
+    base = (
+        select(Movie)
+        .join(FavoriteMoviesTable, FavoriteMoviesTable.c.movie_id == Movie.id)
+        .where(*conditions)
+    )
+    total = await db.scalar(select(func.count()).select_from(base.subquery()))
+
+    direction = asc if order == "asc" else desc
+    stmt = (
+        base.order_by(direction(SORT_FIELDS[sort_by]), Movie.id)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    movies = (await db.execute(stmt)).scalars().all()
+    return movies, total

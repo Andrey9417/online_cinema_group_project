@@ -134,3 +134,11 @@ class Movie(Base):
     stars: Mapped[list["Star"]] = relationship(
         secondary=movie_stars, back_populates="movies"
     )
+
+
+FavoriteMoviesTable = Table(
+    "favorite_movies",
+    Base.metadata,
+    Column("user_id", ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("movie_id", ForeignKey("movies.id", ondelete="CASCADE"), primary_key=True),
+)
