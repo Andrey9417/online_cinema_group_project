@@ -57,7 +57,7 @@ async def register_new_user(
     return UserRegistrationResponseSchema(id=user.id, email=user.email)
 
 
-@router.post(
+@router.get(
     "/activate",
     response_model=MessageResponseSchema,
     status_code=status.HTTP_200_OK
