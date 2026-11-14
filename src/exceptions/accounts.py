@@ -8,6 +8,10 @@ class UserEmailAlreadyExist(Exception):
     pass
 
 
+class UserDoesNotExist(Exception):
+    pass
+
+
 class UserWithEmailDoesNotExist(Exception):
     pass
 
@@ -57,4 +61,8 @@ class InvalidPasswordResetToken(Exception):
 
 
 class PasswordResetTokenExpired(Exception):
+    pass
+
+
+class CannotChangeOwnGroup(Exception):
     pass
