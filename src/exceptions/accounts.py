@@ -46,3 +46,15 @@ class ExpiredJWTToken(Exception):
 
 class InvalidUserCredentials(Exception):
     pass
+
+
+class WrongOldPassword(Exception):
+    pass
+
+
+class InvalidPasswordResetToken(Exception):
+    pass
+
+
+class PasswordResetTokenExpired(Exception):
+    pass
