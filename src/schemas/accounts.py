@@ -41,6 +41,10 @@ class UserRegistrationRequestSchema(UserEmailSchema):
         return val_password(raw_password)
 
 
+class UserActivationRequestSchema(BaseModel):
+    token: str = Field(min_length=1)
+
+
 class UserRegistrationResponseSchema(BaseModel):
     id: int
     email: EmailStr

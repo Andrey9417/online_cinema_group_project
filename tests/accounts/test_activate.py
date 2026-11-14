@@ -7,7 +7,7 @@ URL = "/api/v1/accounts/activate"
 
 
 async def activate(client, token):
-    return await client.get(URL, params={"token": token})
+    return await client.post(URL, json={"token": token})
 
 
 async def test_activate_success(client, make_user, fetch):
@@ -41,10 +41,34 @@ async def test_activate_unknown_token(client, make_user, fetch):
     assert (await fetch.user(user.email)).is_active is False
 
 
-async def test_activate_missing_token_param(client):
-    response = await client.get(URL)
+async def test_activate_missing_token(client):
+    response = await client.post(URL, json={})
 
     assert response.status_code == 422
+
+
+async def test_activate_empty_token(client):
+    response = await client.post(URL, json={"token": ""})
+
+    assert response.status_code == 422
+
+
+async def test_activate_token_in_query_is_ignored(client, make_user, fetch):
+    user, token = await make_user()
+
+    response = await client.post(URL, params={"token": token.token})
+
+    assert response.status_code == 422
+    assert (await fetch.user(user.email)).is_active is False
+
+
+async def test_activate_get_not_allowed(client, make_user, fetch):
+    user, token = await make_user()
+
+    response = await client.get(URL, params={"token": token.token})
+
+    assert response.status_code == 405
+    assert (await fetch.user(user.email)).is_active is False
 
 
 async def test_activate_expired_token(client, make_user, fetch):
