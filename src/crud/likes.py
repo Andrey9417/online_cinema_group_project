@@ -9,6 +9,7 @@ from schemas.likes import (
     CommentReactionsSchema
 )
 
+
 async def set_movie_reaction(
         db: AsyncSession,
         movie_id: int,
@@ -78,10 +79,10 @@ async def delete_movie_reaction(
 
 
 async def set_comment_reaction(
-    db: AsyncSession,
-    user_id: int,
-    comment_id: int,
-    reaction_data: CommentLikeCreateSchema,
+        db: AsyncSession,
+        user_id: int,
+        comment_id: int,
+        reaction_data: CommentLikeCreateSchema,
 ) -> CommentLike:
     stmt = select(CommentLike).where(
         CommentLike.user_id == user_id,
@@ -106,9 +107,9 @@ async def set_comment_reaction(
 
 
 async def delete_comment_reaction(
-    db: AsyncSession,
-    user_id: int,
-    comment_id: int,
+        db: AsyncSession,
+        user_id: int,
+        comment_id: int,
 ) -> bool:
     stmt = select(CommentLike).where(
         CommentLike.user_id == user_id,
@@ -126,8 +127,8 @@ async def delete_comment_reaction(
 
 
 async def get_comment_reactions(
-    db: AsyncSession,
-    comment_id: int,
+        db: AsyncSession,
+        comment_id: int,
 ) -> CommentReactionsSchema:
     stmt = (
         select(CommentLike.is_like, func.count())
