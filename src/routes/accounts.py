@@ -3,14 +3,16 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from crud.accounts import register_user, activate_user, send_activation_again, login_user, refresh_token, logout_user
+from config.dependencies import CurrentUser
+from crud.accounts import register_user, activate_user, send_activation_again, login_user, refresh_token, logout_user, \
+    get_profile_by_user_id, update_profile
 from database import get_db_session
 from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, InvalidActivationToken, \
     ActivationTokenExpired, AccountAlreadyActive, UserWithEmailDoesNotExist, InvalidUserCredentials, AccountNotActive, \
-    InvalidJWTToken, ExpiredJWTToken
+    InvalidJWTToken, ExpiredJWTToken, ProfileDoesNotExist
 from schemas.accounts import UserRegistrationResponseSchema, UserRegistrationRequestSchema, MessageResponseSchema, \
     UserResendActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserTokenRefreshRequestSchema, \
-    UserTokenRefreshResponseSchema, UserLogoutRequestSchema
+    UserTokenRefreshResponseSchema, UserLogoutRequestSchema, UserProfileResponseSchema, UserProfileUpdateSchema
 from tasks.emails import send_activation_email_task
 
 router = APIRouter()
@@ -142,3 +144,39 @@ async def good_logout_user(session: ASession, user_data: UserLogoutRequestSchema
             detail=str(e)
         ) from e
     return MessageResponseSchema(message="Come back =(")
+
+
+@router.get(
+    "/profile/me",
+    response_model=UserProfileResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def get_user_profile(session: ASession, user: CurrentUser):
+    if not (profile := await get_profile_by_user_id(session, user.id)):
+        raise HTTPException(
+            status_code=404,
+            detail="Profile not found"
+        )
+    return profile
+
+
+@router.patch(
+    "/profile/me",
+    response_model=UserProfileResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def update_user_profile(
+        session: ASession, user: CurrentUser, prof_data: UserProfileUpdateSchema
+):
+    try:
+        return await update_profile(session, user.id, prof_data)
+    except ProfileDoesNotExist as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        ) from e
+    except SomethingWentWrong as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) from e

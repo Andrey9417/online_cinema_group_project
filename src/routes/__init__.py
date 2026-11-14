@@ -12,6 +12,6 @@ api_v1_router.include_router(movies_router)
 api_v1_router.include_router(reference_router)
 
 # api_v1_router includes baby-routers
-api_v1_router.include_router(accounts_router)
+api_v1_router.include_router(accounts_router, prefix="/accounts", tags=["accounts", "profiles"])
 api_v1_router.include_router(carts_router)
 api_v1_router.include_router(payments_router)

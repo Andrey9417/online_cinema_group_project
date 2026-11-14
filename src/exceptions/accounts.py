@@ -16,6 +16,10 @@ class GroupDoesNotExist(SomethingWentWrong):
     pass
 
 
+class ProfileDoesNotExist(Exception):
+    pass
+
+
 class InvalidActivationToken(Exception):
     pass
 
