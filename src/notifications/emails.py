@@ -31,3 +31,11 @@ def send_activation_email(user_email: str, act_token: str):
     act_link = f"{settings.API_URL}/api/v1/accounts/activate?token={act_token}"
     html = jinja.get_template("activation.html").render(activation_link=act_link)
     send_email(user_email, "Activate your account", html)
+
+
+def send_password_reset_email(user_email: str, reset_token: str):
+    html = jinja.get_template("password_reset.html").render(
+        reset_token=reset_token,
+        expire_minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
+    )
+    send_email(user_email, "Reset your password", html)

@@ -9,6 +9,20 @@ from pydantic import BaseModel, EmailStr, field_validator, Field, ConfigDict
 from database.models import GenderEnum
 
 
+def val_password(raw_password: str):
+    if not 8 <= len(raw_password) <= 128:
+        raise ValueError("Password must be between 8 and 128 chars.")
+    if not re.search(r'[A-Z]', raw_password):
+        raise ValueError("Password must contain at least one uppercase letter.")
+    if not re.search(r'[a-z]', raw_password):
+        raise ValueError("Password must contain at least one lower letter.")
+    if not re.search(r'\d', raw_password):
+        raise ValueError("Password must contain at least one digit.")
+    if not re.search(r'[@$!%*?&#]', raw_password):
+        raise ValueError("Password must contain at least one special character: @, $, !, %, *, ?, #, &.")
+    return raw_password
+
+
 class UserEmailSchema(BaseModel):
     email: EmailStr
 
@@ -24,17 +38,7 @@ class UserRegistrationRequestSchema(UserEmailSchema):
     @field_validator("raw_password")
     @classmethod
     def validate_password(cls, raw_password: str):
-        if not 8 <= len(raw_password) <= 128:
-            raise ValueError("Password must be between 8 and 128 chars.")
-        if not re.search(r'[A-Z]', raw_password):
-            raise ValueError("Password must contain at least one uppercase letter.")
-        if not re.search(r'[a-z]', raw_password):
-            raise ValueError("Password must contain at least one lower letter.")
-        if not re.search(r'\d', raw_password):
-            raise ValueError("Password must contain at least one digit.")
-        if not re.search(r'[@$!%*?&#]', raw_password):
-            raise ValueError("Password must contain at least one special character: @, $, !, %, *, ?, #, &.")
-        return raw_password
+        return val_password(raw_password)
 
 
 class UserRegistrationResponseSchema(BaseModel):
@@ -139,3 +143,27 @@ class UserProfileResponseSchema(BaseModel):
     avatar: str | None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PasswordChangeRequestSchema(BaseModel):
+    old_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, new_password: str):
+        return val_password(new_password)
+
+
+class PasswordResetRequestSchema(UserEmailSchema):
+    pass
+
+
+class PasswordResetCompleteSchema(BaseModel):
+    token: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, new_password: str):
+        return val_password(new_password)

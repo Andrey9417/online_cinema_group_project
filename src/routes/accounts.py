@@ -7,19 +7,21 @@ from PIL import Image
 
 from config.dependencies import CurrentUser, S3Client
 from crud.accounts import register_user, activate_user, send_activation_again, login_user, refresh_token, logout_user, \
-    get_profile_by_user_id, update_profile, update_profile_avatar
+    get_profile_by_user_id, update_profile, update_profile_avatar, change_password, request_password_reset, \
+    complete_password_reset
 from database import get_db_session
 from database.models import UserProfile
 from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, InvalidActivationToken, \
     ActivationTokenExpired, AccountAlreadyActive, UserWithEmailDoesNotExist, InvalidUserCredentials, AccountNotActive, \
-    InvalidJWTToken, ExpiredJWTToken, ProfileDoesNotExist
+    InvalidJWTToken, ExpiredJWTToken, ProfileDoesNotExist, WrongOldPassword, InvalidPasswordResetToken, \
+    PasswordResetTokenExpired
 from exceptions.storages import S3FileUploadError, S3FileDeleteError
 from schemas.accounts import UserRegistrationResponseSchema, UserRegistrationRequestSchema, MessageResponseSchema, \
     UserResendActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserTokenRefreshRequestSchema, \
     UserTokenRefreshResponseSchema, UserLogoutRequestSchema, UserProfileResponseSchema, UserProfileUpdateSchema, \
-    UserProfileAvatarSchema
+    UserProfileAvatarSchema, PasswordChangeRequestSchema, PasswordResetRequestSchema, PasswordResetCompleteSchema
 from storages import S3StorageInterface
-from tasks.emails import send_activation_email_task
+from tasks.emails import send_activation_email_task, send_password_reset_email_task
 
 router = APIRouter()
 ASession = Annotated[AsyncSession, Depends(get_db_session)]
@@ -234,3 +236,67 @@ async def upload_profile_avatar(
             # dunno what to do here
             ...
     return await profile_response(profile, s3)
+
+
+@router.post(
+    "/password/change",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def change_user_password(
+        session: ASession, user: CurrentUser, data: PasswordChangeRequestSchema
+):
+    try:
+        await change_password(session, user, data)
+    except WrongOldPassword as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        ) from e
+    except SomethingWentWrong as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) from e
+    return MessageResponseSchema(message="Password changed, log in again")
+
+
+@router.post(
+    "/password/reset/request",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def request_user_password_reset(session: ASession, data: PasswordResetRequestSchema):
+    try:
+        user, token = await request_password_reset(session, data)
+    except (UserWithEmailDoesNotExist, AccountNotActive):
+        """Returns 200 cuz safety reasons"""
+        return MessageResponseSchema(message="Reset token has been sent")
+    except SomethingWentWrong as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) from e
+    send_password_reset_email_task.delay(user.email, token.token)
+    return MessageResponseSchema(message="Reset token has been sent")
+
+
+@router.post(
+    "/password/reset/complete",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def complete_user_password_reset(session: ASession, data: PasswordResetCompleteSchema):
+    try:
+        await complete_password_reset(session, data)
+    except (InvalidPasswordResetToken, PasswordResetTokenExpired) as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        ) from e
+    except SomethingWentWrong as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) from e
+    return MessageResponseSchema(message="Password has been reset, log in")

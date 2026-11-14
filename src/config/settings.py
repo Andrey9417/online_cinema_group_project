@@ -31,8 +31,9 @@ class Settings(BaseSettings):
     S3_STORAGE_ACCESS_KEY: str = os.getenv("MINIO_ROOT_USER", "minioadmin")
     S3_STORAGE_SECRET_KEY: str = os.getenv("MINIO_ROOT_PASSWORD", "some_password")
     S3_BUCKET_NAME: str = os.getenv("MINIO_STORAGE", "cinema-storage")
-
     S3_PUBLIC_URL: str = "http://localhost:9000"  # browser -> storage
+
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 60
 
     @property
     def DATABASE_URL(self) -> str:

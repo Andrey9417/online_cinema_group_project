@@ -1,19 +1,20 @@
 from datetime import datetime, timezone, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from config.settings import settings
 from database.models import User, UserGroup, UserGroupEnum, ActivationToken
-from database.models.accounts import TokenBaseModel, RefreshToken, UserProfile
+from database.models.accounts import TokenBaseModel, RefreshToken, UserProfile, PasswordResetToken
 from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, GroupDoesNotExist, InvalidActivationToken, \
     ActivationTokenExpired, AccountAlreadyActive, UserWithEmailDoesNotExist, InvalidUserCredentials, AccountNotActive, \
-    InvalidJWTToken, ProfileDoesNotExist
+    InvalidJWTToken, ProfileDoesNotExist, WrongOldPassword, InvalidPasswordResetToken, PasswordResetTokenExpired
 from schemas.accounts import UserRegistrationRequestSchema, UserResendActivationSchema, UserLoginRequestSchema, \
-    UserTokenRefreshRequestSchema, UserLogoutRequestSchema, UserProfileUpdateSchema
-from security.passwords import verify_password
+    UserTokenRefreshRequestSchema, UserLogoutRequestSchema, UserProfileUpdateSchema, PasswordChangeRequestSchema, \
+    PasswordResetRequestSchema, PasswordResetCompleteSchema
+from security.passwords import verify_password, hash_password
 from security.tokens import create_access_token, create_refresh_token, decode_jwt_token, JWTTokenTypes
 
 
@@ -166,3 +167,68 @@ async def update_profile_avatar(
         await session.rollback()
         raise SomethingWentWrong("Something went wrong, try again later")
     return profile, old_avatar
+
+
+async def change_password(
+        session: AsyncSession, user: User, data: PasswordChangeRequestSchema
+):
+    if not verify_password(data.old_password, user.hashed_password):
+        raise WrongOldPassword("Old password is incorrect")
+    user.hashed_password = hash_password(data.new_password)
+    try:
+        await session.execute(delete(RefreshToken).where(RefreshToken.user_id == user.id))
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        raise SomethingWentWrong("Something went wrong, try again later")
+
+
+async def request_password_reset(
+        session: AsyncSession, data: PasswordResetRequestSchema
+) -> tuple[User, PasswordResetToken]:
+    if not (user := await session.scalar(
+        select(User)
+        .options(joinedload(User.password_reset_token))
+        .where(User.email == data.email)
+    )):
+        raise UserWithEmailDoesNotExist("User with such email does not exist")
+    if not user.is_active:
+        raise AccountNotActive("Account is not active")
+    try:
+        if user.password_reset_token:
+            await session.delete(user.password_reset_token)
+            await session.flush()
+        token = PasswordResetToken(
+            user_id=user.id,
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES),
+        )
+        session.add(token)
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        raise SomethingWentWrong("Something went wrong, try again later")
+    return user, token
+
+
+async def complete_password_reset(
+        session: AsyncSession, data: PasswordResetCompleteSchema
+):
+    if not (reset_token := await session.scalar(
+        select(PasswordResetToken)
+        .options(joinedload(PasswordResetToken.user))
+        .where(PasswordResetToken.token == data.token)
+    )):
+        raise InvalidPasswordResetToken("Invalid token")
+    if reset_token.expires_at < datetime.now(timezone.utc):
+        await delete_token(session, reset_token)
+        raise PasswordResetTokenExpired("Token expired")
+    user = reset_token.user
+    user.hashed_password = hash_password(data.new_password)
+    try:
+        await session.delete(reset_token)
+        await session.execute(delete(RefreshToken).where(RefreshToken.user_id == user.id))
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        raise SomethingWentWrong("Something went wrong, try again later")
