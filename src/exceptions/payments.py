@@ -1,0 +1,2 @@
+class PaymentGatewayError(Exception):
+    pass
