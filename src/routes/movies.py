@@ -8,7 +8,7 @@ from config.dependencies import get_current_user
 from crud.comments import create_comment, get_movie_comments
 from database.models import Movie, User, Comment
 from database.session import get_db_session
-from dependencies import require_moderator
+from config.dependencies import require_moderator
 from crud.movies import (
     get_movie_by_id,
     get_movie_list,
@@ -49,7 +49,6 @@ from schemas.movies import (
 router = APIRouter(prefix="/movies", tags=["movies"])
 
 
-# --- моє: статичні шляхи мають стояти ВИЩЕ за "/{movie_id}/" ---
 
 @router.get("/favorites/", response_model=MovieListResponseSchema)
 async def list_favorites(
@@ -84,7 +83,6 @@ async def list_genres(db: AsyncSession = Depends(get_db_session)):
     return await get_genres_with_count(db)
 
 
-# --- з develop (без змін) ---
 
 @router.get("/{movie_id}/", response_model=MovieDetailSchema)
 async def movie_detail(
@@ -141,6 +139,7 @@ async def movie_list(
 async def add_movie(
         movie_data: MovieCreateSchema,
         db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ) -> Movie:
     movie = await create_movie(db, movie_data)
     return await get_movie_by_id(db, movie.id)
@@ -150,7 +149,8 @@ async def add_movie(
 async def edit_movie(
         movie_id: int,
         movie_data: MovieUpdateSchema,
-        db: AsyncSession = Depends(get_db_session)
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ) -> Movie | None:
     movie = await update_movie(db, movie_id, movie_data)
     if movie is None:
@@ -161,7 +161,8 @@ async def edit_movie(
 @router.delete("/{movie_id}/", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_movie(
         movie_id: int,
-        db: AsyncSession = Depends(get_db_session)
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ) -> None:
     deleted = await delete_movie(db, movie_id)
     if not deleted:
@@ -198,7 +199,6 @@ async def list_comments(
     return await get_movie_comments(db, movie_id)
 
 
-# --- моє: обране ---
 
 @router.post(
     "/{movie_id}/favorite/",
@@ -231,7 +231,6 @@ async def remove_from_favorites(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# --- моє: оцінки ---
 
 @router.put("/{movie_id}/rating/", response_model=MessageResponseSchema)
 async def rate_movie(
@@ -259,7 +258,6 @@ async def remove_movie_rating(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# --- моє: жанри ---
 
 @router.get("/genres/{genre_id}/movies/", response_model=MovieListResponseSchema)
 async def list_genre_movies(
@@ -323,7 +321,6 @@ async def remove_genre(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# --- моє: актори ---
 
 @router.post("/stars/", response_model=StarSchema, status_code=status.HTTP_201_CREATED)
 async def add_star(

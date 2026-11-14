@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from config.settings import Settings, settings
-from database.models.accounts import User
+from database.models.accounts import User, UserGroupEnum
 from database.session import get_db_session
 from exceptions.accounts import ExpiredJWTToken, InvalidJWTToken
 from security.tokens import JWTTokenTypes, decode_jwt_token
@@ -53,3 +53,9 @@ async def get_current_user(
         )
 
     return user
+
+
+async def require_moderator(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.group.name not in (UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN):
+        raise HTTPException(status_code=403, detail="Not enough permissions.")
+    return current_user
