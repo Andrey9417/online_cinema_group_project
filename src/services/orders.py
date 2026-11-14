@@ -9,8 +9,8 @@ from crud.orders import (
     get_movies_by_user_id_and_order_status,
     create_db_order,
     cancel_order,
-    get_order_by_id,
-    get_orders
+    get_order_with_movies_by_id,
+    get_orders,
 )
 from database.models import Order, Cart, OrderItem, OrderStatusEnum, CartItem
 from exceptions.orders import (
@@ -25,7 +25,7 @@ from schemas.orders import (
     CreateOrderResponseSchema,
     ExcludedMovieReasonEnum,
     OrderResponseSchema,
-    OrderListResponseSchema
+    OrderListResponseSchema, OrderDetailResponseSchema
 )
 
 
@@ -92,36 +92,46 @@ async def create_order_service(db: AsyncSession, user_id: int) -> CreateOrderRes
         for item in available_items:
             await db.delete(item)
 
+        response = CreateOrderResponseSchema(
+            order=OrderResponseSchema.model_validate(db_order),
+            excluded_movies=excluded_movies,
+        )
+
         await db.commit()
     except Exception:
         await db.rollback()
         raise
 
-    return CreateOrderResponseSchema(
-        order=OrderResponseSchema.model_validate(db_order),
-        excluded_movies=excluded_movies,
-    )
+    return response
 
 
 def count_total_amount(prices: list[Decimal]) -> Decimal:
     return sum(prices, start=Decimal("0.00"))
 
 
-async def cancel_order_service(order_id: int, user_id: int, db: AsyncSession) -> None:
+async def cancel_order_service(
+        order_id: int,
+        user_id: int,
+        db: AsyncSession
+) -> OrderDetailResponseSchema:
     try:
-        order = await get_order_by_id(
+        order = await get_order_with_movies_by_id(
             db=db,
             order_id=order_id,
             user_id=user_id,
-            for_update=True
+            for_update=True,
         )
+
         if order is None:
             raise OrderDoNotExist
 
         if order.status != OrderStatusEnum.PENDING:
             raise OrderCannotBeCanceled("Only pending orders can be canceled.")
         await cancel_order(db=db, order=order)
+        response = OrderDetailResponseSchema.model_validate(order)
+
         await db.commit()
+        return response
 
     except Exception:
         await db.rollback()

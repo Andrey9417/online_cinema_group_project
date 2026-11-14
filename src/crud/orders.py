@@ -41,7 +41,7 @@ async def get_orders(
     return list(orders.all())
 
 
-async def get_order_by_id(
+async def get_order_with_movies_by_id(
         db: AsyncSession,
         order_id: int,
         user_id: int | None = None,
@@ -50,7 +50,7 @@ async def get_order_by_id(
     stmt = (
         select(Order)
         .where(Order.id == order_id)
-        .options(selectinload(Order.items))
+        .options(selectinload(Order.items).selectinload(OrderItem.movie))
     )
 
     if user_id is not None:

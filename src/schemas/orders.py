@@ -5,6 +5,7 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict
 
 from database.models import OrderStatusEnum
+from schemas.movies import MovieListItemSchema
 
 
 class OrderItemResponseSchema(BaseModel):
@@ -12,6 +13,14 @@ class OrderItemResponseSchema(BaseModel):
 
     id: int
     movie_id: int
+    price_at_order: decimal.Decimal
+
+
+class OrderItemDetailSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    movie: MovieListItemSchema
     price_at_order: decimal.Decimal
 
 
@@ -24,6 +33,10 @@ class OrderResponseSchema(BaseModel):
     status: OrderStatusEnum
     total_amount: decimal.Decimal
     items: list[OrderItemResponseSchema]
+
+
+class OrderDetailResponseSchema(OrderResponseSchema):
+    items: list[OrderItemDetailSchema]
 
 
 class ExcludedMovieReasonEnum(StrEnum):
