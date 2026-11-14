@@ -51,4 +51,5 @@ __all__ = [
     "movie_directors",
     "movie_genres",
     "movie_stars",
+    "FavoriteMoviesTable",
 ]

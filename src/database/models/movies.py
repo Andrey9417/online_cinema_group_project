@@ -158,4 +158,3 @@ class MovieRating(Base):
     __table_args__ = (
         CheckConstraint("rating BETWEEN 1 AND 10", name="ck_movie_ratings_rating_range"),
     )
-

@@ -49,7 +49,6 @@ from schemas.movies import (
 router = APIRouter(prefix="/movies", tags=["movies"])
 
 
-
 @router.get("/favorites/", response_model=MovieListResponseSchema)
 async def list_favorites(
         page: int = Query(1, ge=1),
@@ -81,7 +80,6 @@ async def list_favorites(
 @router.get("/genres/", response_model=list[GenreWithCountSchema])
 async def list_genres(db: AsyncSession = Depends(get_db_session)):
     return await get_genres_with_count(db)
-
 
 
 @router.get("/{movie_id}/", response_model=MovieDetailSchema)
@@ -199,7 +197,6 @@ async def list_comments(
     return await get_movie_comments(db, movie_id)
 
 
-
 @router.post(
     "/{movie_id}/favorite/",
     response_model=MessageResponseSchema,
@@ -231,7 +228,6 @@ async def remove_from_favorites(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-
 @router.put("/{movie_id}/rating/", response_model=MessageResponseSchema)
 async def rate_movie(
         movie_id: int,
@@ -256,7 +252,6 @@ async def remove_movie_rating(
         raise HTTPException(status_code=404, detail="Rating not found.")
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
 
 
 @router.get("/genres/{genre_id}/movies/", response_model=MovieListResponseSchema)
@@ -319,7 +314,6 @@ async def remove_genre(
     if not await delete_genre(db, genre_id):
         raise HTTPException(status_code=404, detail="Genre not found.")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
 
 
 @router.post("/stars/", response_model=StarSchema, status_code=status.HTTP_201_CREATED)
