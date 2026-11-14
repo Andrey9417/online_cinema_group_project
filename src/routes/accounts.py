@@ -1,25 +1,26 @@
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status, Form
+from fastapi import APIRouter, Depends, HTTPException, status, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from PIL import Image
 
-from config.dependencies import CurrentUser, S3Client
+from config.dependencies import CurrentUser, S3Client, AdminUser
 from crud.accounts import register_user, activate_user, send_activation_again, login_user, refresh_token, logout_user, \
     get_profile_by_user_id, update_profile, update_profile_avatar, change_password, request_password_reset, \
-    complete_password_reset
+    complete_password_reset, change_user_group, admin_activate_account
 from database import get_db_session
 from database.models import UserProfile
 from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, InvalidActivationToken, \
     ActivationTokenExpired, AccountAlreadyActive, UserWithEmailDoesNotExist, InvalidUserCredentials, AccountNotActive, \
     InvalidJWTToken, ExpiredJWTToken, ProfileDoesNotExist, WrongOldPassword, InvalidPasswordResetToken, \
-    PasswordResetTokenExpired
+    PasswordResetTokenExpired, CannotChangeOwnGroup, UserDoesNotExist
 from exceptions.storages import S3FileUploadError, S3FileDeleteError
 from schemas.accounts import UserRegistrationResponseSchema, UserRegistrationRequestSchema, MessageResponseSchema, \
     UserResendActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserTokenRefreshRequestSchema, \
     UserTokenRefreshResponseSchema, UserLogoutRequestSchema, UserProfileResponseSchema, UserProfileUpdateSchema, \
-    UserProfileAvatarSchema, PasswordChangeRequestSchema, PasswordResetRequestSchema, PasswordResetCompleteSchema
+    UserProfileAvatarSchema, PasswordChangeRequestSchema, PasswordResetRequestSchema, PasswordResetCompleteSchema, \
+    AdminUserResponseSchema, UserGroupChangeRequestSchema
 from storages import S3StorageInterface
 from tasks.emails import send_activation_email_task, send_password_reset_email_task
 
@@ -205,7 +206,7 @@ async def update_user_profile(
 )
 async def upload_profile_avatar(
         session: ASession, user: CurrentUser,
-        s3: S3Client, avatar_data: Annotated[UserProfileAvatarSchema, Form()]
+        s3: S3Client, avatar_data: Annotated[UserProfileAvatarSchema, File()]
 ):
     avatar = avatar_data.avatar
     image_format = Image.open(avatar.file).format
@@ -300,3 +301,59 @@ async def complete_user_password_reset(session: ASession, data: PasswordResetCom
             detail=str(e)
         ) from e
     return MessageResponseSchema(message="Password has been reset, log in")
+
+
+@router.patch(
+    "/admin/users/{user_id}/group",
+    response_model=AdminUserResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def admin_change_user_group(
+        user_id: int, session: ASession, admin: AdminUser, data: UserGroupChangeRequestSchema
+):
+    try:
+        user = await change_user_group(session, admin, user_id, data.group)
+    except CannotChangeOwnGroup as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        ) from e
+    except UserDoesNotExist as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        ) from e
+    except SomethingWentWrong as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) from e
+    return AdminUserResponseSchema(
+        id=user.id, email=user.email, is_active=user.is_active, group=user.group.name
+    )
+
+
+@router.post(
+    "/admin/users/{user_id}/activate",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def admin_activate_user_account(user_id: int, session: ASession, admin: AdminUser):
+    try:
+        await admin_activate_account(session, user_id)
+    except UserDoesNotExist as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        ) from e
+    except AccountAlreadyActive as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        ) from e
+    except SomethingWentWrong as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) from e
+    return MessageResponseSchema(message="Account activated")

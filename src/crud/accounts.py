@@ -10,7 +10,8 @@ from database.models import User, UserGroup, UserGroupEnum, ActivationToken
 from database.models.accounts import TokenBaseModel, RefreshToken, UserProfile, PasswordResetToken
 from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, GroupDoesNotExist, InvalidActivationToken, \
     ActivationTokenExpired, AccountAlreadyActive, UserWithEmailDoesNotExist, InvalidUserCredentials, AccountNotActive, \
-    InvalidJWTToken, ProfileDoesNotExist, WrongOldPassword, InvalidPasswordResetToken, PasswordResetTokenExpired
+    InvalidJWTToken, ProfileDoesNotExist, WrongOldPassword, InvalidPasswordResetToken, PasswordResetTokenExpired, \
+    CannotChangeOwnGroup, UserDoesNotExist
 from schemas.accounts import UserRegistrationRequestSchema, UserResendActivationSchema, UserLoginRequestSchema, \
     UserTokenRefreshRequestSchema, UserLogoutRequestSchema, UserProfileUpdateSchema, PasswordChangeRequestSchema, \
     PasswordResetRequestSchema, PasswordResetCompleteSchema
@@ -20,6 +21,10 @@ from security.tokens import create_access_token, create_refresh_token, decode_jw
 
 async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
     return await session.scalar(select(User).where(User.email == email))
+
+
+async def get_user_by_id(session: AsyncSession, user_id: int, *args) -> User | None:
+    return await session.scalar(select(User).options(*args).where(User.id == user_id))
 
 
 async def get_profile_by_user_id(session: AsyncSession, user_id: int):
@@ -228,6 +233,39 @@ async def complete_password_reset(
     try:
         await session.delete(reset_token)
         await session.execute(delete(RefreshToken).where(RefreshToken.user_id == user.id))
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        raise SomethingWentWrong("Something went wrong, try again later")
+
+
+async def change_user_group(
+        session: AsyncSession, admin: User, user_id: int, group_name: UserGroupEnum
+):
+    if user_id == admin.id:
+        raise CannotChangeOwnGroup("You can not do that!")
+    if not (user := await get_user_by_id(session, user_id, joinedload(User.group))):
+        raise UserDoesNotExist("User not found")
+    if not (group := await session.scalar(select(UserGroup).where(UserGroup.name == group_name))):
+        raise GroupDoesNotExist("Group does not exist")
+    user.group = group
+    try:
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        raise SomethingWentWrong("Something went wrong, try again later")
+    return user
+
+
+async def admin_activate_account(session: AsyncSession, user_id: int):
+    if not (user := await get_user_by_id(session, user_id, joinedload(User.activation_token))):
+        raise UserDoesNotExist("User not found")
+    if user.is_active:
+        raise AccountAlreadyActive("Account is already active")
+    user.is_active = True
+    try:
+        if user.activation_token:
+            await session.delete(user.activation_token)
         await session.commit()
     except SQLAlchemyError:
         await session.rollback()

@@ -6,7 +6,7 @@ from PIL import Image
 from fastapi import UploadFile
 from pydantic import BaseModel, EmailStr, field_validator, Field, ConfigDict
 
-from database.models import GenderEnum
+from database.models import GenderEnum, UserGroupEnum
 
 
 def val_password(raw_password: str):
@@ -167,3 +167,14 @@ class PasswordResetCompleteSchema(BaseModel):
     @classmethod
     def validate_new_password(cls, new_password: str):
         return val_password(new_password)
+
+
+class UserGroupChangeRequestSchema(BaseModel):
+    group: UserGroupEnum
+
+
+class AdminUserResponseSchema(BaseModel):
+    id: int
+    email: EmailStr
+    is_active: bool
+    group: UserGroupEnum
