@@ -18,6 +18,7 @@ from database.models.movies import (
     movie_directors,
     movie_genres,
     movie_stars,
+    FavoriteMoviesTable,
 )
 from database.models.orders import Order, OrderItem, OrderStatusEnum
 from database.models.payments import Payment, PaymentItem, PaymentStatusEnum
@@ -50,5 +51,6 @@ __all__ = [
     "movie_directors",
     "movie_genres",
     "movie_stars",
-    "MovieLike"
+    "FavoriteMoviesTable",
+    "MovieLike",
 ]

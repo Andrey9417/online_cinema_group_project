@@ -11,7 +11,7 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
-    Uuid,
+    Uuid, CheckConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -133,4 +133,28 @@ class Movie(Base):
     )
     stars: Mapped[list["Star"]] = relationship(
         secondary=movie_stars, back_populates="movies"
+    )
+
+
+FavoriteMoviesTable = Table(
+    "favorite_movies",
+    Base.metadata,
+    Column("user_id", ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("movie_id", ForeignKey("movies.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+class MovieRating(Base):
+    __tablename__ = "movie_ratings"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    movie_id: Mapped[int] = mapped_column(
+        ForeignKey("movies.id", ondelete="CASCADE"), primary_key=True
+    )
+    rating: Mapped[int] = mapped_column()
+
+    __table_args__ = (
+        CheckConstraint("rating BETWEEN 1 AND 10", name="ck_movie_ratings_rating_range"),
     )

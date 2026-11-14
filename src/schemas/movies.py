@@ -1,7 +1,7 @@
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class GenreSchema(BaseModel):
@@ -121,3 +121,21 @@ class MovieUpdateSchema(BaseModel):
     genre_ids: list[int] | None = None
     star_ids: list[int] | None = None
     director_ids: list[int] | None = None
+
+
+class MessageResponseSchema(BaseModel):
+    detail: str
+
+
+class GenreWithCountSchema(BaseModel):
+    id: int
+    name: str
+    movies_count: int
+
+    model_config = {
+        "from_attributes": True,
+    }
+
+
+class MovieRatingSchema(BaseModel):
+    rating: int = Field(ge=1, le=10)
