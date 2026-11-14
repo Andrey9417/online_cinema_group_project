@@ -28,6 +28,6 @@ def send_email(recipient: str, subject: str, html: str):
 
 
 def send_activation_email(user_email: str, act_token: str):
-    act_link = f"{settings.API_URL}/api/v1/activate?token={act_token}"
+    act_link = f"{settings.API_URL}/api/v1/accounts/activate?token={act_token}"
     html = jinja.get_template("activation.html").render(activation_link=act_link)
     send_email(user_email, "Activate your account", html)
