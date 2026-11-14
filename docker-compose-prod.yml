@@ -60,12 +60,8 @@ services:
     container_name: alembic_migrator
     restart: no
     command: alembic upgrade head
-    environment:
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      POSTGRES_PORT: ${POSTGRES_PORT}
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    env_file:
+      - .env
     depends_on:
       postgres_db:
         condition: service_healthy
