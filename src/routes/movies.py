@@ -1,10 +1,14 @@
 from math import ceil
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
+from typing import Literal, Sequence
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from database.models import Movie
-from config.dependencies import get_db_session, get_current_user
+
+from config.dependencies import get_current_user
+from crud.comments import create_comment, get_movie_comments
+from database.models import Movie, User, Comment
+from database.session import get_db_session
 from dependencies import require_moderator
-from typing import Literal
 from crud.movies import (
     get_movie_by_id,
     get_movie_list,
@@ -17,10 +21,17 @@ from crud.movies import (
     get_genre_by_id,
     get_movies_by_genre,
     get_genres_with_count,
+    create_genre,
+    update_genre,
+    delete_genre,
+    get_star_by_id,
+    create_star,
+    update_star,
+    delete_star,
     set_rating,
-    remove_rating, get_star_by_id,
+    remove_rating,
 )
-from models import User
+from schemas.comments import CommentSchema, CommentCreateSchema
 from schemas.movies import (
     MovieDetailSchema,
     MovieListResponseSchema,
@@ -28,11 +39,52 @@ from schemas.movies import (
     MovieUpdateSchema,
     MessageResponseSchema,
     GenreWithCountSchema,
-    MovieRatingSchema, GenreCreateSchema, GenreSchema, StarCreateSchema, StarSchema,
+    MovieRatingSchema,
+    GenreSchema,
+    GenreCreateSchema,
+    StarSchema,
+    StarCreateSchema,
 )
 
 router = APIRouter(prefix="/movies", tags=["movies"])
 
+
+# --- моє: статичні шляхи мають стояти ВИЩЕ за "/{movie_id}/" ---
+
+@router.get("/favorites/", response_model=MovieListResponseSchema)
+async def list_favorites(
+        page: int = Query(1, ge=1),
+        per_page: int = Query(10, ge=1, le=20),
+        search: str | None = Query(None),
+        year: int | None = Query(None),
+        min_imdb: float | None = Query(None, ge=0, le=10),
+        sort_by: Literal["price", "year", "imdb", "popularity"] = "year",
+        order: Literal["asc", "desc"] = "desc",
+        db: AsyncSession = Depends(get_db_session),
+        current_user: User = Depends(get_current_user),
+):
+    movies, total = await get_favorite_movies(
+        db, current_user.id, page, per_page,
+        search, year, min_imdb, sort_by, order,
+    )
+    total_pages = ceil(total / per_page)
+
+    base = "/movies/favorites/"
+    return {
+        "movies": movies,
+        "prev_page": f"{base}?page={page - 1}&per_page={per_page}" if page > 1 else None,
+        "next_page": f"{base}?page={page + 1}&per_page={per_page}" if page < total_pages else None,
+        "total_pages": total_pages,
+        "total_items": total,
+    }
+
+
+@router.get("/genres/", response_model=list[GenreWithCountSchema])
+async def list_genres(db: AsyncSession = Depends(get_db_session)):
+    return await get_genres_with_count(db)
+
+
+# --- з develop (без змін) ---
 
 @router.get("/{movie_id}/", response_model=MovieDetailSchema)
 async def movie_detail(
@@ -49,32 +101,6 @@ async def movie_detail(
 
     return movie
 
-
-
-@router.get("/movies/favorites/", response_model=MovieListResponseSchema)
-async def list_favorites(
-    page: int = Query(1, ge=1),
-    per_page: int = Query(10, ge=1, le=20),
-    search: str | None = Query(None),
-    year: int | None = Query(None),
-    min_imdb: float | None = Query(None, ge=0, le=10),
-    sort_by: Literal["price", "year", "imdb", "popularity"] = "year",
-    order: Literal["asc", "desc"] = "desc",
-    db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
-):
-    movies, total = await get_favorite_movies(
-        db, current_user.id, page, per_page, search, year, min_imdb, sort_by, order
-    )
-    total_pages = ceil(total / per_page)
-
-    return {
-        "movies": movies,
-        "prev_page": f"/movies/favorites/?page={page - 1}&per_page={per_page}" if page > 1 else None,
-        "next_page": f"/movies/favorites/?page={page + 1}&per_page={per_page}" if page < total_pages else None,
-        "total_pages": total_pages,
-        "total_items": total,
-    }
 
 @router.get("/", response_model=MovieListResponseSchema)
 async def movie_list(
@@ -143,14 +169,46 @@ async def remove_movie(
 
 
 @router.post(
-    "/movies/{movie_id}/favorite/",
+    "/{movie_id}/comments/",
+    response_model=CommentSchema,
+    status_code=status.HTTP_201_CREATED
+)
+async def add_comment(
+        movie_id: int,
+        comment_data: CommentCreateSchema,
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db_session),
+) -> Comment:
+    movie = await get_movie_by_id(db, movie_id)
+
+    if movie is None:
+        raise HTTPException(status_code=404, detail="Movie not found")
+
+    return await create_comment(db, movie_id, current_user.id, comment_data)
+
+
+@router.get(
+    "/{movie_id}/comments/",
+    response_model=list[CommentSchema]
+)
+async def list_comments(
+        movie_id: int,
+        db: AsyncSession = Depends(get_db_session),
+) -> Sequence[Comment]:
+    return await get_movie_comments(db, movie_id)
+
+
+# --- моє: обране ---
+
+@router.post(
+    "/{movie_id}/favorite/",
     response_model=MessageResponseSchema,
     status_code=status.HTTP_201_CREATED,
 )
 async def add_to_favorites(
-    movie_id: int,
-    db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+        movie_id: int,
+        db: AsyncSession = Depends(get_db_session),
+        current_user: User = Depends(get_current_user),
 ):
     if not await db.get(Movie, movie_id):
         raise HTTPException(status_code=404, detail="Movie not found.")
@@ -161,11 +219,11 @@ async def add_to_favorites(
     return {"detail": "Movie added to favorites."}
 
 
-@router.delete("/movies/{movie_id}/favorite/", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{movie_id}/favorite/", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_from_favorites(
-    movie_id: int,
-    db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+        movie_id: int,
+        db: AsyncSession = Depends(get_db_session),
+        current_user: User = Depends(get_current_user),
 ):
     if not await remove_favorite(db, current_user.id, movie_id):
         raise HTTPException(status_code=404, detail="Movie is not in favorites.")
@@ -173,17 +231,42 @@ async def remove_from_favorites(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/genres/", response_model=list[GenreWithCountSchema])
-async def list_genres(db: AsyncSession = Depends(get_db_session)):
-    return await get_genres_with_count(db)
+# --- моє: оцінки ---
 
+@router.put("/{movie_id}/rating/", response_model=MessageResponseSchema)
+async def rate_movie(
+        movie_id: int,
+        data: MovieRatingSchema,
+        db: AsyncSession = Depends(get_db_session),
+        current_user: User = Depends(get_current_user),
+):
+    if not await db.get(Movie, movie_id):
+        raise HTTPException(status_code=404, detail="Movie not found.")
+
+    await set_rating(db, current_user.id, movie_id, data.rating)
+    return {"detail": "Rating saved."}
+
+
+@router.delete("/{movie_id}/rating/", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_movie_rating(
+        movie_id: int,
+        db: AsyncSession = Depends(get_db_session),
+        current_user: User = Depends(get_current_user),
+):
+    if not await remove_rating(db, current_user.id, movie_id):
+        raise HTTPException(status_code=404, detail="Rating not found.")
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- моє: жанри ---
 
 @router.get("/genres/{genre_id}/movies/", response_model=MovieListResponseSchema)
 async def list_genre_movies(
-    genre_id: int,
-    page: int = Query(1, ge=1),
-    per_page: int = Query(10, ge=1, le=20),
-    db: AsyncSession = Depends(get_db_session),
+        genre_id: int,
+        page: int = Query(1, ge=1),
+        per_page: int = Query(10, ge=1, le=20),
+        db: AsyncSession = Depends(get_db_session),
 ):
     if not await get_genre_by_id(db, genre_id):
         raise HTTPException(status_code=404, detail="Genre not found.")
@@ -191,7 +274,7 @@ async def list_genre_movies(
     movies, total = await get_movies_by_genre(db, genre_id, page, per_page)
     total_pages = ceil(total / per_page)
 
-    base = f"/genres/{genre_id}/movies/"
+    base = f"/movies/genres/{genre_id}/movies/"
     return {
         "movies": movies,
         "prev_page": f"{base}?page={page - 1}&per_page={per_page}" if page > 1 else None,
@@ -201,37 +284,11 @@ async def list_genre_movies(
     }
 
 
-@router.put("/movies/{movie_id}/rating/", response_model=MessageResponseSchema)
-async def rate_movie(
-    movie_id: int,
-    data: MovieRatingSchema,
-    db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
-):
-    if not await db.get(Movie, movie_id):
-        raise HTTPException(status_code=404, detail="Movie not found.")
-
-    await set_rating(db, current_user.id, movie_id, data.rating)
-    return {"detail": "Rating saved."}
-
-
-@router.delete("/movies/{movie_id}/rating/", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_movie_rating(
-    movie_id: int,
-    db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
-):
-    if not await remove_rating(db, current_user.id, movie_id):
-        raise HTTPException(status_code=404, detail="Rating not found.")
-
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
 @router.post("/genres/", response_model=GenreSchema, status_code=status.HTTP_201_CREATED)
-async def create_genre(
-    data: GenreCreateSchema,
-    db: AsyncSession = Depends(get_db_session),
-    moderator: User = Depends(require_moderator),
+async def add_genre(
+        data: GenreCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ):
     genre = await create_genre(db, data.name)
     if genre is None:
@@ -240,11 +297,11 @@ async def create_genre(
 
 
 @router.put("/genres/{genre_id}/", response_model=GenreSchema)
-async def update_genre(
-    genre_id: int,
-    data: GenreCreateSchema,
-    db: AsyncSession = Depends(get_db_session),
-    moderator: User = Depends(require_moderator),
+async def edit_genre(
+        genre_id: int,
+        data: GenreCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ):
     genre = await get_genre_by_id(db, genre_id)
     if genre is None:
@@ -256,21 +313,23 @@ async def update_genre(
 
 
 @router.delete("/genres/{genre_id}/", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_genre(
-    genre_id: int,
-    db: AsyncSession = Depends(get_db_session),
-    moderator: User = Depends(require_moderator),
+async def remove_genre(
+        genre_id: int,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ):
     if not await delete_genre(db, genre_id):
         raise HTTPException(status_code=404, detail="Genre not found.")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+# --- моє: актори ---
+
 @router.post("/stars/", response_model=StarSchema, status_code=status.HTTP_201_CREATED)
-async def create_star(
-    data: StarCreateSchema,
-    db: AsyncSession = Depends(get_db_session),
-    moderator: User = Depends(require_moderator),
+async def add_star(
+        data: StarCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ):
     star = await create_star(db, data.name)
     if star is None:
@@ -279,11 +338,11 @@ async def create_star(
 
 
 @router.put("/stars/{star_id}/", response_model=StarSchema)
-async def update_star(
-    star_id: int,
-    data: StarCreateSchema,
-    db: AsyncSession = Depends(get_db_session),
-    moderator: User = Depends(require_moderator),
+async def edit_star(
+        star_id: int,
+        data: StarCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ):
     star = await get_star_by_id(db, star_id)
     if star is None:
@@ -295,10 +354,10 @@ async def update_star(
 
 
 @router.delete("/stars/{star_id}/", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_star(
-    star_id: int,
-    db: AsyncSession = Depends(get_db_session),
-    moderator: User = Depends(require_moderator),
+async def remove_star(
+        star_id: int,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ):
     if not await delete_star(db, star_id):
         raise HTTPException(status_code=404, detail="Star not found.")
