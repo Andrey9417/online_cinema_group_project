@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from database.models import UserGroup, UserGroupEnum
 from security.passwords import verify_password
 
-URL = "/api/v1/register"
+URL = "/api/v1/accounts/register"
 PASSWORD = "Str0ng!Pass"
 
 

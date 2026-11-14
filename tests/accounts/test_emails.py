@@ -34,7 +34,7 @@ def test_send_activation_email_contains_activation_link():
     recipient, subject, html = send.call_args.args
     assert recipient == "user@example.com"
     assert subject == "Activate your account"
-    assert f'href="{settings.API_URL}/api/v1/activate?token=abc-123_XYZ"' in html
+    assert f'href="{settings.API_URL}/api/v1/accounts/activate?token=abc-123_XYZ"' in html
 
 
 def test_send_activation_email_task_delegates_to_sender():
