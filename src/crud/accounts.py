@@ -7,18 +7,22 @@ from sqlalchemy.orm import joinedload
 
 from config.settings import settings
 from database.models import User, UserGroup, UserGroupEnum, ActivationToken
-from database.models.accounts import TokenBaseModel, RefreshToken
+from database.models.accounts import TokenBaseModel, RefreshToken, UserProfile
 from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, GroupDoesNotExist, InvalidActivationToken, \
     ActivationTokenExpired, AccountAlreadyActive, UserWithEmailDoesNotExist, InvalidUserCredentials, AccountNotActive, \
-    InvalidJWTToken
+    InvalidJWTToken, ProfileDoesNotExist
 from schemas.accounts import UserRegistrationRequestSchema, UserResendActivationSchema, UserLoginRequestSchema, \
-    UserTokenRefreshRequestSchema, UserLogoutRequestSchema
+    UserTokenRefreshRequestSchema, UserLogoutRequestSchema, UserProfileUpdateSchema
 from security.passwords import verify_password
 from security.tokens import create_access_token, create_refresh_token, decode_jwt_token, JWTTokenTypes
 
 
 async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
     return await session.scalar(select(User).where(User.email == email))
+
+
+async def get_profile_by_user_id(session: AsyncSession, user_id: int):
+    return await session.scalar(select(UserProfile).where(UserProfile.user_id == user_id))
 
 
 async def delete_token(session: AsyncSession, token: TokenBaseModel | None):
@@ -132,3 +136,33 @@ async def logout_user(session: AsyncSession, user_data: UserLogoutRequestSchema)
         select(RefreshToken).where(RefreshToken.token == user_data.refresh_token)
     )
     await delete_token(session, ref_token)
+
+
+async def update_profile(
+        session: AsyncSession, user_id: int, prof_data: UserProfileUpdateSchema
+):
+    if not (profile := await get_profile_by_user_id(session, user_id)):
+        raise ProfileDoesNotExist("Profile not found")
+    for fi, val in prof_data.model_dump(exclude_unset=True).items():
+        setattr(profile, fi, val)
+    try:
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        raise SomethingWentWrong("Something went wrong, try again later")
+    return profile
+
+
+async def update_profile_avatar(
+        session: AsyncSession, user_id: int, avatar_key: str
+):
+    if not (profile := await get_profile_by_user_id(session, user_id)):
+        raise ProfileDoesNotExist("Profile not found")
+    old_avatar = profile.avatar
+    profile.avatar = avatar_key
+    try:
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        raise SomethingWentWrong("Something went wrong, try again later")
+    return profile, old_avatar

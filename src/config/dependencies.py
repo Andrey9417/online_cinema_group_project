@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from config.settings import Settings, settings
+from config.settings import settings
 from database.models.accounts import User, UserGroupEnum
 from database.session import get_db_session
 from exceptions.accounts import ExpiredJWTToken, InvalidJWTToken
@@ -15,13 +15,17 @@ from storages import S3StorageClient, S3StorageInterface
 
 
 bearer_scheme = HTTPBearer()
+GLVL = {
+    UserGroupEnum.USER: 100,
+    UserGroupEnum.MODERATOR: 200,
+    UserGroupEnum.ADMIN: 300,
+}
 
 
-def get_s3_storage_client(
-        settings: Annotated[Settings, Depends(settings)]
-) -> S3StorageInterface:
+def get_s3_storage_client() -> S3StorageInterface:
     return S3StorageClient(
         endpoint_url=settings.S3_STORAGE_ENDPOINT,
+        public_url=settings.S3_PUBLIC_URL,
         access_key=settings.S3_STORAGE_ACCESS_KEY,
         secret_key=settings.S3_STORAGE_SECRET_KEY,
         bucket_name=settings.S3_BUCKET_NAME
@@ -36,7 +40,9 @@ async def get_current_user(
     try:
         payload = decode_jwt_token(token, JWTTokenTypes.ACCESS)
     except (InvalidJWTToken, ExpiredJWTToken):
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token"
+        )
     user_id = int(payload["user_id"])
     stmt = (
         select(User)
@@ -51,8 +57,32 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is not active",
+        )
 
     return user
+
+
+def require_group(min_g: UserGroupEnum):
+    async def check_the_heck(user: User = Depends(get_current_user)):
+        if GLVL[user.group.name] < GLVL[min_g]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You have no rights here!",
+            )
+        return user
+    return check_the_heck
+
+
+################ shortcuts for routs ######################## noqa
+CurrentUser = Annotated[User, Depends(get_current_user)]
+ModeratorUser = Annotated[User, Depends(require_group(UserGroupEnum.MODERATOR))]
+AdminUser = Annotated[User, Depends(require_group(UserGroupEnum.ADMIN))]
+S3Client = Annotated[S3StorageInterface, Depends(get_s3_storage_client)]
+#############################################################
 
 
 async def require_moderator(current_user: User = Depends(get_current_user)) -> User:

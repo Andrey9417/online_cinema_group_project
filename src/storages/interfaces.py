@@ -5,15 +5,17 @@ from typing import Union
 class S3StorageInterface(ABC):
 
     @abstractmethod
-    async def upload_file(self, file_name: str, file_data: Union[bytes, bytearray]) -> None:
+    async def upload_file(
+            self, file_name: str, file_data: Union[bytes, bytearray], content_type: str
+    ) -> None:
         """
         Uploads a file to the storage.
 
         :param file_name: The name of the file to be stored.
         :param file_data: The file data in bytes.
-        :return: URL of the uploaded file.
+        :param content_type: MIME type the file will be served with.
+        :raises S3FileUploadError: if the upload fails.
         """
-        pass
 
     @abstractmethod
     async def get_file_url(self, file_name: str) -> str:
@@ -23,4 +25,12 @@ class S3StorageInterface(ABC):
         :param file_name: The name of the file stored in the bucket.
         :return: The full URL to access the file.
         """
-        pass
+
+    @abstractmethod
+    async def delete_file(self, file_name: str) -> None:
+        """
+        Deletes a file from the storage. Deleting a missing file is not an error.
+
+        :param file_name: Object key in the bucket.
+        :raises S3FileDeleteError: if the storage call fails.
+        """

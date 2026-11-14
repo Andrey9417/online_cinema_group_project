@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from sqlalchemy.exc import SQLAlchemyError
 
-URL = "/api/v1/activate"
+URL = "/api/v1/accounts/activate"
 
 
 async def activate(client, token):

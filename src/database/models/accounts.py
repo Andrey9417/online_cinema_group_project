@@ -107,7 +107,8 @@ class User(Base):
         return cls(
             email=email,
             group_id=group_id,
-            hashed_password=hash_password(raw_password)
+            hashed_password=hash_password(raw_password),
+            profile=UserProfile()
         )
 
 
