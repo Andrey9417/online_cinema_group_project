@@ -1,12 +1,11 @@
 from math import ceil
 from typing import Literal, Sequence
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from config.dependencies import get_current_user
 from crud.comments import create_comment, get_movie_comments
-from database.models import Movie, User, Comment
+from crud.likes import set_movie_reaction, delete_movie_reaction, get_movie_reactions
+from database.models import Movie, User, Comment, MovieLike
 from database.session import get_db_session
 from config.dependencies import require_moderator
 from crud.movies import (
@@ -32,6 +31,7 @@ from crud.movies import (
     remove_rating,
 )
 from schemas.comments import CommentSchema, CommentCreateSchema
+from schemas.likes import MovieLikeSchema, MovieLikeCreateSchema, MovieReactionsSchema
 from schemas.movies import (
     MovieDetailSchema,
     MovieListResponseSchema,
@@ -89,7 +89,7 @@ async def movie_detail(
 ) -> Movie:
     movie = await get_movie_by_id(db, movie_id)
 
-    if movie is None:
+    if not movie:
         raise HTTPException(
             status_code=404,
             detail="Movie not found",
@@ -151,7 +151,7 @@ async def edit_movie(
         moderator: User = Depends(require_moderator),
 ) -> Movie | None:
     movie = await update_movie(db, movie_id, movie_data)
-    if movie is None:
+    if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
     return await get_movie_by_id(db, movie_id)
 
@@ -180,7 +180,7 @@ async def add_comment(
 ) -> Comment:
     movie = await get_movie_by_id(db, movie_id)
 
-    if movie is None:
+    if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
     return await create_comment(db, movie_id, current_user.id, comment_data)
@@ -353,3 +353,52 @@ async def remove_star(
     if not await delete_star(db, star_id):
         raise HTTPException(status_code=404, detail="Star not found.")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{movie_id}/like/",
+    response_model=MovieLikeSchema
+)
+async def set_like(
+        movie_id: int,
+        like_data: MovieLikeCreateSchema,
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db_session),
+) -> MovieLike:
+    movie = await get_movie_by_id(db, movie_id)
+
+    if not movie:
+        raise HTTPException(status_code=404, detail="Movie not found")
+
+    return await set_movie_reaction(db, movie_id, current_user.id, like_data)
+
+
+@router.delete(
+    "/{movie_id}/like/",
+    status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_like(
+        movie_id: int,
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db_session),
+) -> None:
+    deleted = await delete_movie_reaction(db, movie_id, current_user.id)
+
+    if not deleted:
+        raise HTTPException(404, "Reaction not found")
+
+
+@router.get(
+    "/{movie_id}/likes/",
+    response_model=MovieReactionsSchema,
+)
+async def movie_reactions(
+        movie_id: int,
+        db: AsyncSession = Depends(get_db_session),
+) -> MovieReactionsSchema:
+    movie = await get_movie_by_id(db, movie_id)
+
+    if not movie:
+        raise HTTPException(status_code=404, detail="Movie not found")
+
+    return await get_movie_reactions(db, movie_id)
