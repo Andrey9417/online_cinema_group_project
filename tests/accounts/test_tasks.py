@@ -92,6 +92,7 @@ def test_tasks_are_registered():
 
     assert "tasks.tokens.delete_expired_tokens" in celery_app.tasks
     assert "tasks.emails.send_activation_email_task" in celery_app.tasks
+    assert "tasks.emails.send_password_reset_email_task" in celery_app.tasks
 
 
 def test_beat_schedules_hourly_token_cleanup():

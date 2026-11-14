@@ -61,8 +61,8 @@ async def test_resent_token_activates_and_old_one_does_not(client, make_user, fe
     await resend(client)
     new_value = (await fetch.tokens(user.id))[0].token
 
-    old_response = await client.get("/api/v1/accounts/activate", params={"token": old_value})
-    new_response = await client.get("/api/v1/accounts/activate", params={"token": new_value})
+    old_response = await client.post("/api/v1/accounts/activate", json={"token": old_value})
+    new_response = await client.post("/api/v1/accounts/activate", json={"token": new_value})
 
     assert old_response.status_code == 400
     assert new_response.status_code == 200

@@ -20,7 +20,7 @@ from schemas.accounts import UserRegistrationResponseSchema, UserRegistrationReq
     UserResendActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserTokenRefreshRequestSchema, \
     UserTokenRefreshResponseSchema, UserLogoutRequestSchema, UserProfileResponseSchema, UserProfileUpdateSchema, \
     UserProfileAvatarSchema, PasswordChangeRequestSchema, PasswordResetRequestSchema, PasswordResetCompleteSchema, \
-    AdminUserResponseSchema, UserGroupChangeRequestSchema
+    AdminUserResponseSchema, UserGroupChangeRequestSchema, UserActivationRequestSchema
 from storages import S3StorageInterface
 from tasks.emails import send_activation_email_task, send_password_reset_email_task
 
@@ -60,14 +60,15 @@ async def register_new_user(
     return UserRegistrationResponseSchema(id=user.id, email=user.email)
 
 
-@router.get(
+@router.post(
     "/activate",
     response_model=MessageResponseSchema,
     status_code=status.HTTP_200_OK
 )
-async def activate_new_user(session: ASession, token: str):
+async def activate_new_user(session: ASession, token_data: UserActivationRequestSchema):
+    """Copy token from url provided via email, post it via docs to activate account"""
     try:
-        await activate_user(session, token)
+        await activate_user(session, token_data.token)
     except (InvalidActivationToken, ActivationTokenExpired, AccountAlreadyActive) as e:
         raise HTTPException(
             status_code=400,

@@ -28,7 +28,7 @@ def send_email(recipient: str, subject: str, html: str):
 
 
 def send_activation_email(user_email: str, act_token: str):
-    act_link = f"{settings.API_URL}/api/v1/accounts/activate?token={act_token}"
+    act_link = f"{settings.API_URL}/activate?token={act_token}"  # right now should be 404
     html = jinja.get_template("activation.html").render(activation_link=act_link)
     send_email(user_email, "Activate your account", html)
 
