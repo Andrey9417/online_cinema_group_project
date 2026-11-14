@@ -8,7 +8,7 @@ from crud.carts import (
     add_movie_to_cart
 )
 from crud.movies import get_movie_by_id
-from database.models import Cart, CartItem
+from database.models import Cart
 from exceptions.carts import EntityAlreadyExists, DBError, EntityNotFound
 
 
