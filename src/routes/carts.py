@@ -79,7 +79,6 @@ async def clear_my_cart(
         ) from e
 
 
-
 @router.post(
     "/items",
     response_model=CartResponseSchema,
