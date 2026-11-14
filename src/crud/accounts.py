@@ -151,3 +151,17 @@ async def update_profile(
         await session.rollback()
         raise SomethingWentWrong("Something went wrong, try again later")
     return profile
+
+
+async def update_profile_avatar(
+        session: AsyncSession, user_id: int, avatar_key: str
+):
+    if not (profile := await get_profile_by_user_id(session, user_id)):
+        raise ProfileDoesNotExist("Profile not found")
+    profile.avatar = avatar_key
+    try:
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        raise SomethingWentWrong("Something went wrong, try again later")
+    return profile

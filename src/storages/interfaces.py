@@ -5,13 +5,16 @@ from typing import Union
 class S3StorageInterface(ABC):
 
     @abstractmethod
-    async def upload_file(self, file_name: str, file_data: Union[bytes, bytearray]) -> None:
+    async def upload_file(
+            self, file_name: str, file_data: Union[bytes, bytearray], content_type: str
+    ) -> None:
         """
         Uploads a file to the storage.
 
         :param file_name: The name of the file to be stored.
         :param file_data: The file data in bytes.
-        :return: URL of the uploaded file.
+        :param content_type: MIME type the file will be served with.
+        :raises S3FileUploadError: if the upload fails.
         """
         pass
 

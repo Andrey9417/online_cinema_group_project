@@ -1,22 +1,35 @@
 from typing import Annotated
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 from sqlalchemy.ext.asyncio import AsyncSession
+from PIL import Image
 
-from config.dependencies import CurrentUser
+from config.dependencies import CurrentUser, S3Client
 from crud.accounts import register_user, activate_user, send_activation_again, login_user, refresh_token, logout_user, \
-    get_profile_by_user_id, update_profile
+    get_profile_by_user_id, update_profile, update_profile_avatar
 from database import get_db_session
+from database.models import UserProfile
 from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, InvalidActivationToken, \
     ActivationTokenExpired, AccountAlreadyActive, UserWithEmailDoesNotExist, InvalidUserCredentials, AccountNotActive, \
     InvalidJWTToken, ExpiredJWTToken, ProfileDoesNotExist
+from exceptions.storages import S3FileUploadError
 from schemas.accounts import UserRegistrationResponseSchema, UserRegistrationRequestSchema, MessageResponseSchema, \
     UserResendActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserTokenRefreshRequestSchema, \
-    UserTokenRefreshResponseSchema, UserLogoutRequestSchema, UserProfileResponseSchema, UserProfileUpdateSchema
+    UserTokenRefreshResponseSchema, UserLogoutRequestSchema, UserProfileResponseSchema, UserProfileUpdateSchema, \
+    UserProfileAvatarSchema
+from storages import S3StorageInterface
 from tasks.emails import send_activation_email_task
 
 router = APIRouter()
 ASession = Annotated[AsyncSession, Depends(get_db_session)]
+
+
+async def profile_response(profile: UserProfile, s3: S3StorageInterface):
+    resp = UserProfileResponseSchema.model_validate(profile)
+    if profile.avatar:
+        resp.avatar = await s3.get_file_url(profile.avatar)
+    return resp
 
 
 @router.post(
@@ -151,13 +164,13 @@ async def good_logout_user(session: ASession, user_data: UserLogoutRequestSchema
     response_model=UserProfileResponseSchema,
     status_code=status.HTTP_200_OK
 )
-async def get_user_profile(session: ASession, user: CurrentUser):
+async def get_user_profile(session: ASession, user: CurrentUser, s3: S3Client):
     if not (profile := await get_profile_by_user_id(session, user.id)):
         raise HTTPException(
             status_code=404,
             detail="Profile not found"
         )
-    return profile
+    return await profile_response(profile, s3)
 
 
 @router.patch(
@@ -166,10 +179,10 @@ async def get_user_profile(session: ASession, user: CurrentUser):
     status_code=status.HTTP_200_OK
 )
 async def update_user_profile(
-        session: ASession, user: CurrentUser, prof_data: UserProfileUpdateSchema
+        session: ASession, user: CurrentUser, prof_data: UserProfileUpdateSchema, s3: S3Client
 ):
     try:
-        return await update_profile(session, user.id, prof_data)
+        profile = await update_profile(session, user.id, prof_data)
     except ProfileDoesNotExist as e:
         raise HTTPException(
             status_code=404,
@@ -180,3 +193,38 @@ async def update_user_profile(
             status_code=500,
             detail=str(e)
         ) from e
+    return await profile_response(profile, s3)
+
+
+@router.post(
+    "/profile/me/avatar",
+    response_model=UserProfileResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def upload_profile_avatar(
+        session: ASession, user: CurrentUser,
+        s3: S3Client, avatar_data: Annotated[UserProfileAvatarSchema, Form()]
+):
+    avatar = avatar_data.avatar
+    image_format = Image.open(avatar.file).format
+    avatar.file.seek(0)
+    avatar_key = f"avatars/{user.id}/{uuid4().hex}.{image_format.lower()}"
+    try:
+        await s3.upload_file(avatar_key, await avatar.read(), Image.MIME[image_format])
+        profile = await update_profile_avatar(session, user.id, avatar_key)
+    except S3FileUploadError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Avatar not uploaded, try again later"
+        ) from e
+    except ProfileDoesNotExist as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        ) from e
+    except SomethingWentWrong as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) from e
+    return await profile_response(profile, s3)

@@ -1,6 +1,8 @@
 import re
 from datetime import date
+from io import BytesIO
 
+from PIL import Image
 from fastapi import UploadFile
 from pydantic import BaseModel, EmailStr, field_validator, Field, ConfigDict
 
@@ -82,9 +84,7 @@ class UserProfileUpdateSchema(BaseModel):
     @classmethod
     def validate_name(cls, name_field: str | None):
         if name_field:
-            if re.search(r'^[A-Za-z]*$', name_field) is None:
-                raise ValueError(f'{name_field} contains non-english letters')
-            name_field.lower()
+            name_field = name_field.strip()
         return name_field
 
     @field_validator("date_of_birth")
@@ -94,18 +94,40 @@ class UserProfileUpdateSchema(BaseModel):
             if user_date > date.today():
                 raise ValueError("You can not register today while being born in the future")
             if user_date.year < 1900:
-                raise ValueError('Invalid birth date - year must be greater than 1900.')
-            age = (date.today() - user_date).days // 365
-            if age < 18:
-                raise ValueError('You must be at least 18 years old to register.')
+                raise ValueError("Invalid birth date - year must be greater than 1900.")
         return user_date
 
     @field_validator("info")
     @classmethod
     def validate_info(cls, info_field: str | None):
         if info_field:
-            info_field.strip()
+            info_field = info_field.strip()
         return info_field
+
+
+class UserProfileAvatarSchema(BaseModel):
+    avatar: UploadFile
+
+    @field_validator("avatar")
+    @classmethod
+    def validate_avatar(cls, avatar: UploadFile):
+        supported_image_formats = ["JPEG", "PNG"]
+        max_file_size = 2 * 1024 * 1024
+        if avatar.size and avatar.size > max_file_size:
+            raise ValueError("Image size exceeds 2 MB")
+        contents = avatar.file.read()
+        try:
+            image = Image.open(BytesIO(contents))
+            image.verify()
+        except (IOError, Image.DecompressionBombError) as e:
+            raise ValueError("Invalid image format") from e
+        if image.format not in supported_image_formats:
+            raise ValueError(
+                f"Unsupported image format: {image.format}. "
+                f"Use one of next: {supported_image_formats}"
+            )
+        avatar.file.seek(0)
+        return avatar
 
 
 class UserProfileResponseSchema(BaseModel):
@@ -114,6 +136,6 @@ class UserProfileResponseSchema(BaseModel):
     gender: GenderEnum | None
     date_of_birth: date | None
     info: str | None
-    avatar: UploadFile | None
+    avatar: str | None
 
     model_config = ConfigDict(from_attributes=True)

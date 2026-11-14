@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from config.settings import Settings, settings
+from config.settings import settings
 from database.models.accounts import User, UserGroupEnum
 from database.session import get_db_session
 from exceptions.accounts import ExpiredJWTToken, InvalidJWTToken
@@ -22,11 +22,10 @@ GLVL = {
 }
 
 
-def get_s3_storage_client(
-        settings: Annotated[Settings, Depends(settings)]
-) -> S3StorageInterface:
+def get_s3_storage_client() -> S3StorageInterface:
     return S3StorageClient(
         endpoint_url=settings.S3_STORAGE_ENDPOINT,
+        public_url=settings.S3_PUBLIC_URL,
         access_key=settings.S3_STORAGE_ACCESS_KEY,
         secret_key=settings.S3_STORAGE_SECRET_KEY,
         bucket_name=settings.S3_BUCKET_NAME
@@ -78,10 +77,11 @@ def require_group(min_g: UserGroupEnum):
     return check_the_heck
 
 
-################ shortcuts for routs ########################
+################ shortcuts for routs ######################## noqa
 CurrentUser = Annotated[User, Depends(get_current_user)]
 ModeratorUser = Annotated[User, Depends(require_group(UserGroupEnum.MODERATOR))]
 AdminUser = Annotated[User, Depends(require_group(UserGroupEnum.ADMIN))]
+S3Client = Annotated[S3StorageInterface, Depends(get_s3_storage_client)]
 #############################################################
 
 
