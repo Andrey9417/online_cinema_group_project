@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_CURRENCY: str = "usd"
+    STRIPE_CHECKOUT_TTL_MINUTES: int = 30
+
     S3_STORAGE_HOST: str = os.getenv("MINIO_HOST", "minio")
     S3_STORAGE_PORT: int = os.getenv("MINIO_PORT", 9000)
     S3_STORAGE_ACCESS_KEY: str = os.getenv("MINIO_ROOT_USER", "minioadmin")
