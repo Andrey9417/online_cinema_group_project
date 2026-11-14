@@ -22,7 +22,7 @@ from database.models.movies import (
 from database.models.orders import Order, OrderItem, OrderStatusEnum
 from database.models.payments import Payment, PaymentItem, PaymentStatusEnum
 from database.models.comments import Comment
-
+from database.models.likes import MovieLike
 
 __all__ = [
     "ActivationToken",
@@ -50,4 +50,5 @@ __all__ = [
     "movie_directors",
     "movie_genres",
     "movie_stars",
+    "MovieLike"
 ]
