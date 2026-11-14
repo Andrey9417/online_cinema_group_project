@@ -18,14 +18,18 @@ from database.models.movies import (
     movie_directors,
     movie_genres,
     movie_stars,
+    FavoriteMoviesTable,
 )
 from database.models.orders import Order, OrderItem, OrderStatusEnum
 from database.models.payments import Payment, PaymentItem, PaymentStatusEnum
+from database.models.comments import Comment
+from database.models.likes import MovieLike
 
 __all__ = [
     "ActivationToken",
     "Cart",
     "CartItem",
+    "Comment",
     "Certification",
     "Director",
     "GenderEnum",
@@ -47,4 +51,6 @@ __all__ = [
     "movie_directors",
     "movie_genres",
     "movie_stars",
+    "FavoriteMoviesTable",
+    "MovieLike",
 ]
