@@ -1,14 +1,31 @@
 from collections.abc import Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.dependencies import get_current_user
-from crud.comments import create_reply, create_comment, get_movie_comments, get_comment, update_comment, delete_comment
+from crud.comments import (
+    create_reply,
+    create_comment,
+    get_movie_comments,
+    get_comment,
+    update_comment,
+    delete_comment,
+)
 from crud.movies import get_movie_by_id
-from database.models import User, Comment
+from database.models import User, Comment, CommentLike
 from database.session import get_db_session
 from schemas.comments import CommentCreateSchema, CommentSchema
+from crud.likes import (
+    set_comment_reaction,
+    delete_comment_reaction,
+    get_comment_reactions,
+)
+from schemas.likes import (
+    CommentLikeCreateSchema,
+    CommentLikeSchema,
+    CommentReactionsSchema,
+)
 
 router = APIRouter(tags=["comments"])
 
@@ -87,3 +104,62 @@ async def remove_comment(
     if comment.user_id != current_user.id:
         raise HTTPException(403, "Not your comment")
     await delete_comment(db, comment)
+
+
+@router.post(
+    "/comments/{comment_id}/reactions/",
+    response_model=CommentLikeSchema,
+    status_code=status.HTTP_201_CREATED,
+)
+async def set_comment_like(
+        comment_id: int,
+        reaction_data: CommentLikeCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        current_user: User = Depends(get_current_user),
+) -> CommentLike:
+    comment = await get_comment(db, comment_id)
+    if comment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment not found",
+        )
+    return await set_comment_reaction(
+        db, current_user.id, comment_id, reaction_data
+    )
+
+
+@router.delete(
+    "/comments/{comment_id}/reactions/",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_comment_like(
+        comment_id: int,
+        db: AsyncSession = Depends(get_db_session),
+        current_user: User = Depends(get_current_user),
+) -> Response:
+    deleted = await delete_comment_reaction(
+        db, current_user.id, comment_id
+    )
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reaction not found",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/comments/{comment_id}/reactions/",
+    response_model=CommentReactionsSchema,
+)
+async def comment_reactions(
+        comment_id: int,
+        db: AsyncSession = Depends(get_db_session),
+) -> CommentReactionsSchema:
+    comment = await get_comment(db, comment_id)
+    if comment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment not found",
+        )
+    return await get_comment_reactions(db, comment_id)

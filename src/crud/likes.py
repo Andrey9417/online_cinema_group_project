@@ -1,8 +1,13 @@
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import MovieLike
-from schemas.likes import MovieLikeCreateSchema, MovieReactionsSchema
+from database.models import MovieLike, CommentLike
+from schemas.likes import (
+    MovieLikeCreateSchema,
+    MovieReactionsSchema,
+    CommentLikeCreateSchema,
+    CommentReactionsSchema
+)
 
 
 async def set_movie_reaction(
@@ -71,3 +76,68 @@ async def delete_movie_reaction(
     await db.delete(like)
     await db.commit()
     return True
+
+
+async def set_comment_reaction(
+        db: AsyncSession,
+        user_id: int,
+        comment_id: int,
+        reaction_data: CommentLikeCreateSchema,
+) -> CommentLike:
+    stmt = select(CommentLike).where(
+        CommentLike.user_id == user_id,
+        CommentLike.comment_id == comment_id,
+    )
+    result = await db.execute(stmt)
+    reaction = result.scalar_one_or_none()
+
+    if reaction is None:
+        reaction = CommentLike(
+            user_id=user_id,
+            comment_id=comment_id,
+            is_like=reaction_data.is_like,
+        )
+        db.add(reaction)
+    else:
+        reaction.is_like = reaction_data.is_like
+
+    await db.commit()
+    await db.refresh(reaction)
+    return reaction
+
+
+async def delete_comment_reaction(
+        db: AsyncSession,
+        user_id: int,
+        comment_id: int,
+) -> bool:
+    stmt = select(CommentLike).where(
+        CommentLike.user_id == user_id,
+        CommentLike.comment_id == comment_id,
+    )
+    result = await db.execute(stmt)
+    reaction = result.scalar_one_or_none()
+
+    if reaction is None:
+        return False
+
+    await db.delete(reaction)
+    await db.commit()
+    return True
+
+
+async def get_comment_reactions(
+        db: AsyncSession,
+        comment_id: int,
+) -> CommentReactionsSchema:
+    stmt = (
+        select(CommentLike.is_like, func.count())
+        .where(CommentLike.comment_id == comment_id)
+        .group_by(CommentLike.is_like)
+    )
+    result = await db.execute(stmt)
+    counts = {is_like: count for is_like, count in result.all()}
+    return CommentReactionsSchema(
+        likes=counts.get(True, 0),
+        dislikes=counts.get(False, 0),
+    )
