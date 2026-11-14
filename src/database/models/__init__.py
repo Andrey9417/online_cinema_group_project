@@ -23,13 +23,14 @@ from database.models.movies import (
 from database.models.orders import Order, OrderItem, OrderStatusEnum
 from database.models.payments import Payment, PaymentItem, PaymentStatusEnum
 from database.models.comments import Comment
-from database.models.likes import MovieLike
+from database.models.likes import MovieLike, CommentLike
 
 __all__ = [
     "ActivationToken",
     "Cart",
     "CartItem",
     "Comment",
+    "CommentLike",
     "Certification",
     "Director",
     "GenderEnum",
