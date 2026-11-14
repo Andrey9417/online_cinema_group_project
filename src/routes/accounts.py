@@ -13,7 +13,7 @@ from database.models import UserProfile
 from exceptions.accounts import UserEmailAlreadyExist, SomethingWentWrong, InvalidActivationToken, \
     ActivationTokenExpired, AccountAlreadyActive, UserWithEmailDoesNotExist, InvalidUserCredentials, AccountNotActive, \
     InvalidJWTToken, ExpiredJWTToken, ProfileDoesNotExist
-from exceptions.storages import S3FileUploadError
+from exceptions.storages import S3FileUploadError, S3FileDeleteError
 from schemas.accounts import UserRegistrationResponseSchema, UserRegistrationRequestSchema, MessageResponseSchema, \
     UserResendActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserTokenRefreshRequestSchema, \
     UserTokenRefreshResponseSchema, UserLogoutRequestSchema, UserProfileResponseSchema, UserProfileUpdateSchema, \
@@ -57,7 +57,7 @@ async def register_new_user(
     return UserRegistrationResponseSchema(id=user.id, email=user.email)
 
 
-@router.get(
+@router.post(
     "/activate",
     response_model=MessageResponseSchema,
     status_code=status.HTTP_200_OK
@@ -211,7 +211,7 @@ async def upload_profile_avatar(
     avatar_key = f"avatars/{user.id}/{uuid4().hex}.{image_format.lower()}"
     try:
         await s3.upload_file(avatar_key, await avatar.read(), Image.MIME[image_format])
-        profile = await update_profile_avatar(session, user.id, avatar_key)
+        profile, old_avatar = await update_profile_avatar(session, user.id, avatar_key)
     except S3FileUploadError as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -227,4 +227,10 @@ async def upload_profile_avatar(
             status_code=500,
             detail=str(e)
         ) from e
+    if old_avatar:
+        try:  # failed delete should not prevent new avatar upload
+            await s3.delete_file(old_avatar)
+        except S3FileDeleteError:
+            # dunno what to do here
+            ...
     return await profile_response(profile, s3)

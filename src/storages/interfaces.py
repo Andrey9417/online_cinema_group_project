@@ -16,7 +16,6 @@ class S3StorageInterface(ABC):
         :param content_type: MIME type the file will be served with.
         :raises S3FileUploadError: if the upload fails.
         """
-        pass
 
     @abstractmethod
     async def get_file_url(self, file_name: str) -> str:
@@ -26,4 +25,12 @@ class S3StorageInterface(ABC):
         :param file_name: The name of the file stored in the bucket.
         :return: The full URL to access the file.
         """
-        pass
+
+    @abstractmethod
+    async def delete_file(self, file_name: str) -> None:
+        """
+        Deletes a file from the storage. Deleting a missing file is not an error.
+
+        :param file_name: Object key in the bucket.
+        :raises S3FileDeleteError: if the storage call fails.
+        """

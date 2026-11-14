@@ -158,10 +158,11 @@ async def update_profile_avatar(
 ):
     if not (profile := await get_profile_by_user_id(session, user_id)):
         raise ProfileDoesNotExist("Profile not found")
+    old_avatar = profile.avatar
     profile.avatar = avatar_key
     try:
         await session.commit()
     except SQLAlchemyError:
         await session.rollback()
         raise SomethingWentWrong("Something went wrong, try again later")
-    return profile
+    return profile, old_avatar
