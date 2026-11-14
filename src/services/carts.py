@@ -33,7 +33,7 @@ async def clear_user_cart(
 ) -> None:
     cart = await get_cart_by_user(db=db, user_id=user_id)
     if cart is None:
-        return
+        raise EntityNotFound("Cart not found.")
     await clear_cart(db=db, cart_id=cart.id)
 
 
