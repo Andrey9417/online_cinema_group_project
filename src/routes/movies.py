@@ -1,3 +1,4 @@
+from decimal import Decimal
 from math import ceil
 from typing import Sequence
 
@@ -53,9 +54,28 @@ async def movie_list(
             le=20,
             description="Number of items per page"
         ),
+        sort_by: str | None = Query(None),
+        search: str | None = Query(
+            None,
+            description="Search by title, description, actor or director",
+        ),
+        year: int | None = Query(None),
+        min_imdb: float | None = Query(None, ge=0, le=10),
+        price: Decimal | None = Query(None, ge=0),
+        certification_id: int | None = Query(None),
         db: AsyncSession = Depends(get_db_session)
 ) -> MovieListResponseSchema:
-    movies, total_items = await get_movie_list(db, page, per_page)
+    movies, total_items = await get_movie_list(
+        db,
+        page,
+        per_page,
+        sort_by=sort_by,
+        search=search,
+        year=year,
+        min_imdb=min_imdb,
+        price=price,
+        certification_id=certification_id,
+    )
     total_pages = ceil(total_items / per_page)
 
     prev_page = None
