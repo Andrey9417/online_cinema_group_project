@@ -1,4 +1,6 @@
-from sqlalchemy import select, func, insert, delete, asc, desc
+from decimal import Decimal
+
+from sqlalchemy import select, func, or_, insert, delete, asc, desc
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -14,9 +16,17 @@ from database.models.movies import (
 from schemas.movies import MovieCreateSchema, MovieUpdateSchema
 from collections.abc import Sequence
 
+SORT_FIELDS = {
+    "price": Movie.price,
+    "year": Movie.year,
+    "votes": Movie.votes,
+    "imdb": Movie.imdb,
+    "popularity": Movie.votes,
+}
+
 
 async def _get_by_ids(
-    db: AsyncSession, model: type, ids: list[int]
+        db: AsyncSession, model: type, ids: list[int]
 ) -> Sequence:
     result = await db.execute(select(model).where(model.id.in_(ids)))
     return result.scalars().all()
@@ -40,15 +50,64 @@ async def get_movie_by_id(db: AsyncSession, movie_id: int) -> Movie | None:
 
 
 async def get_movie_list(
-        db: AsyncSession, page: int = 1, per_page: int = 10
-) -> tuple[list[Movie], int]:
+        db: AsyncSession,
+        page: int = 1,
+        per_page: int = 10,
+        sort_by: str | None = None,
+        search: str | None = None,
+        year: int | None = None,
+        min_imdb: float | None = None,
+        price: Decimal | None = None,
+        certification_id: int | None = None
+) -> tuple[Sequence[Movie], int]:
     offset = (page - 1) * per_page
 
-    stmt = (select(Movie).offset(offset).limit(per_page).order_by(Movie.id))
+    conditions = []
+
+    if year is not None:
+        conditions.append(Movie.year == year)
+    if min_imdb is not None:
+        conditions.append(Movie.imdb >= min_imdb)
+    if price is not None:
+        conditions.append(Movie.price <= price)
+    if certification_id is not None:
+        conditions.append(Movie.certification_id == certification_id)
+
+    if search:
+        pattern = f"%{search}%"
+        conditions.append(
+            or_(
+                Movie.name.ilike(pattern),
+                Movie.description.ilike(pattern),
+                Movie.stars.any(Star.name.ilike(pattern)),
+                Movie.directors.any(Director.name.ilike(pattern)),
+            )
+        )
+
+    stmt = (
+        select(Movie)
+        .where(*conditions)
+        .offset(offset)
+        .limit(per_page)
+    )
+
+    column = None
+    descending = False
+    if sort_by:
+        descending = sort_by.startswith("-")
+        field_name = sort_by.lstrip("-")
+        column = SORT_FIELDS.get(field_name)
+
+    if column is not None:
+        order = column.desc() if descending else column.asc()
+        stmt = stmt.order_by(order)
+    else:
+        stmt = stmt.order_by(Movie.id)
+
+    count_stmt = select(func.count(Movie.id)).where(*conditions)
     result = await db.execute(stmt)
     movies = result.scalars().all()
 
-    count_stmt = select(func.count(Movie.id))
     result_count = await db.execute(count_stmt)
     count = result_count.scalar()
 
@@ -77,7 +136,7 @@ async def create_movie(db: AsyncSession, movie_data: MovieCreateSchema) -> Movie
 
 
 async def update_movie(
-    db: AsyncSession, movie_id: int, movie_data: MovieUpdateSchema
+        db: AsyncSession, movie_id: int, movie_data: MovieUpdateSchema
 ) -> Movie | None:
     movie = await get_movie_by_id(db, movie_id)
 
@@ -119,14 +178,6 @@ async def delete_movie(db: AsyncSession, movie_id: int) -> bool:
     return True
 
 
-SORT_FIELDS = {
-    "price": Movie.price,
-    "year": Movie.year,
-    "imdb": Movie.imdb,
-    "popularity": Movie.votes,
-}
-
-
 async def add_favorite(db: AsyncSession, user_id: int, movie_id: int) -> bool:
     exists = await db.scalar(
         select(FavoriteMoviesTable.c.movie_id).where(
@@ -154,15 +205,15 @@ async def remove_favorite(db: AsyncSession, user_id: int, movie_id: int) -> bool
 
 
 async def get_favorite_movies(
-    db: AsyncSession,
-    user_id: int,
-    page: int,
-    per_page: int,
-    search: str | None = None,
-    year: int | None = None,
-    min_imdb: float | None = None,
-    sort_by: str = "year",
-    order: str = "desc",
+        db: AsyncSession,
+        user_id: int,
+        page: int,
+        per_page: int,
+        search: str | None = None,
+        year: int | None = None,
+        min_imdb: float | None = None,
+        sort_by: str = "year",
+        order: str = "desc",
 ) -> tuple[list[Movie], int]:
     conditions = [FavoriteMoviesTable.c.user_id == user_id]
 
@@ -216,7 +267,7 @@ async def get_genre_by_id(db: AsyncSession, genre_id: int) -> Genre | None:
 
 
 async def get_movies_by_genre(
-    db: AsyncSession, genre_id: int, page: int = 1, per_page: int = 10
+        db: AsyncSession, genre_id: int, page: int = 1, per_page: int = 10
 ) -> tuple[list[Movie], int]:
     base = (
         select(Movie)

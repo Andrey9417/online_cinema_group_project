@@ -1,11 +1,11 @@
+from decimal import Decimal
 from math import ceil
-from typing import Literal, Sequence
+from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.dependencies import get_current_user
-from crud.comments import create_comment, get_movie_comments
 from crud.likes import set_movie_reaction, delete_movie_reaction, get_movie_reactions
-from database.models import Movie, User, Comment, MovieLike
+from database.models import Movie, User, MovieLike
 from database.session import get_db_session
 from config.dependencies import require_moderator
 from crud.movies import (
@@ -30,7 +30,6 @@ from crud.movies import (
     set_rating,
     remove_rating,
 )
-from schemas.comments import CommentSchema, CommentCreateSchema
 from schemas.likes import MovieLikeSchema, MovieLikeCreateSchema, MovieReactionsSchema
 from schemas.movies import (
     MovieDetailSchema,
@@ -107,9 +106,28 @@ async def movie_list(
             le=20,
             description="Number of items per page"
         ),
+        sort_by: str | None = Query(None),
+        search: str | None = Query(
+            None,
+            description="Search by title, description, actor or director",
+        ),
+        year: int | None = Query(None),
+        min_imdb: float | None = Query(None, ge=0, le=10),
+        price: Decimal | None = Query(None, ge=0),
+        certification_id: int | None = Query(None),
         db: AsyncSession = Depends(get_db_session)
 ) -> MovieListResponseSchema:
-    movies, total_items = await get_movie_list(db, page, per_page)
+    movies, total_items = await get_movie_list(
+        db,
+        page,
+        per_page,
+        sort_by=sort_by,
+        search=search,
+        year=year,
+        min_imdb=min_imdb,
+        price=price,
+        certification_id=certification_id,
+    )
     total_pages = ceil(total_items / per_page)
 
     prev_page = None
@@ -165,36 +183,6 @@ async def remove_movie(
     deleted = await delete_movie(db, movie_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Movie not found")
-
-
-@router.post(
-    "/{movie_id}/comments/",
-    response_model=CommentSchema,
-    status_code=status.HTTP_201_CREATED
-)
-async def add_comment(
-        movie_id: int,
-        comment_data: CommentCreateSchema,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db_session),
-) -> Comment:
-    movie = await get_movie_by_id(db, movie_id)
-
-    if not movie:
-        raise HTTPException(status_code=404, detail="Movie not found")
-
-    return await create_comment(db, movie_id, current_user.id, comment_data)
-
-
-@router.get(
-    "/{movie_id}/comments/",
-    response_model=list[CommentSchema]
-)
-async def list_comments(
-        movie_id: int,
-        db: AsyncSession = Depends(get_db_session),
-) -> Sequence[Comment]:
-    return await get_movie_comments(db, movie_id)
 
 
 @router.post(
