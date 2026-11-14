@@ -1,14 +1,12 @@
 from decimal import Decimal
 from math import ceil
-from typing import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.dependencies import get_current_user
-from crud.comments import create_comment, get_movie_comments
 from crud.likes import set_movie_reaction, delete_movie_reaction, get_movie_reactions
-from database.models import Movie, User, Comment, MovieLike
+from database.models import Movie, User, MovieLike
 from database.session import get_db_session
 from crud.movies import (
     get_movie_by_id,
@@ -17,7 +15,6 @@ from crud.movies import (
     update_movie,
     delete_movie,
 )
-from schemas.comments import CommentSchema, CommentCreateSchema
 from schemas.likes import MovieLikeSchema, MovieLikeCreateSchema, MovieReactionsSchema
 from schemas.movies import (
     MovieDetailSchema,
@@ -128,36 +125,6 @@ async def remove_movie(
     deleted = await delete_movie(db, movie_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Movie not found")
-
-
-@router.post(
-    "/{movie_id}/comments/",
-    response_model=CommentSchema,
-    status_code=status.HTTP_201_CREATED
-)
-async def add_comment(
-        movie_id: int,
-        comment_data: CommentCreateSchema,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db_session),
-) -> Comment:
-    movie = await get_movie_by_id(db, movie_id)
-
-    if not movie:
-        raise HTTPException(status_code=404, detail="Movie not found")
-
-    return await create_comment(db, movie_id, current_user.id, comment_data)
-
-
-@router.get(
-    "/{movie_id}/comments/",
-    response_model=list[CommentSchema]
-)
-async def list_comments(
-        movie_id: int,
-        db: AsyncSession = Depends(get_db_session),
-) -> Sequence[Comment]:
-    return await get_movie_comments(db, movie_id)
 
 
 @router.post(

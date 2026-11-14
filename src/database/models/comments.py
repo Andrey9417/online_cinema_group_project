@@ -16,6 +16,10 @@ class Comment(Base):
     movie_id: Mapped[int] = mapped_column(
         ForeignKey("movies.id", ondelete="CASCADE")
     )
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("comments.id", ondelete="CASCADE"),
+        nullable=True,
+    )
     text: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
