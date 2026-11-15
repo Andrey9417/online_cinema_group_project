@@ -2,7 +2,8 @@ name: Deploy
 
 on:
   push:
-    branches: [aws_deploy]        # <- your branch name
+    branches: [aws_deploy]
+  workflow_dispatch:
 
 concurrency:
   group: deploy
