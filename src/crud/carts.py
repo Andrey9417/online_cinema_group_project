@@ -140,4 +140,3 @@ async def has_user_purchased_movie(
     stmt = select(subquery.exists())
     result = await db.execute(stmt)
     return result.scalar_one()
-

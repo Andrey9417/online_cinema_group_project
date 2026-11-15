@@ -11,6 +11,7 @@ from database.models import Cart, User, UserGroupEnum, Movie, CartItem
 from exceptions.carts import EntityAlreadyExists, DBError, EntityNotFound, StaffRequired, BadRequest
 from tasks.emails import send_movie_already_purchased_email_task
 
+
 async def get_or_create_cart(db: AsyncSession, user_id: int) -> Cart:
     cart = await get_cart_by_user(db=db, user_id=user_id)
 
