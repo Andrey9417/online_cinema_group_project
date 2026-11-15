@@ -40,6 +40,7 @@ services:
       --workers 1
       --worker-class uvicorn.workers.UvicornWorker
       --bind 0.0.0.0:8000
+      --forwarded-allow-ips="*"
       --log-level info
       --access-logfile -
       --error-logfile -
