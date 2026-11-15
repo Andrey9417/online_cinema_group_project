@@ -1,15 +1,16 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from config.dependencies import get_current_user
 from database import get_db_session
 from database.models import User, Cart
-from exceptions.carts import EntityNotFound, DBError, EntityAlreadyExists
+from exceptions.carts import EntityNotFound, DBError, EntityAlreadyExists, StaffRequired
 from schemas.carts import CartResponseSchema, CartItemCreateSchema
-from services.carts import get_or_create_cart, clear_user_cart, delete_movie_from_cart, add_item_to_cart
+from services.carts import get_or_create_cart, clear_user_cart, delete_movie_from_cart, add_item_to_cart, \
+    moderator_get_cart_by_user_id
 
 router = APIRouter(prefix="/carts", tags=["carts"])
 
@@ -38,6 +39,34 @@ async def get_user_cart(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         ) from e
+
+
+@router.get(
+    "/users/{user_id}",
+    response_model=CartResponseSchema,
+    status_code=status.HTTP_200_OK,
+)
+async def staff_get_user_cart(
+        db: ASession,
+        admin: CUser,
+        user_id: Annotated[int, Path(gt=0)],
+) -> Cart:
+    try:
+        cart = await moderator_get_cart_by_user_id(
+            db=db, admin=admin, user_id=user_id
+        )
+    except StaffRequired as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        ) from e
+    except EntityNotFound as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        ) from e
+
+    return cart
 
 
 @router.delete(
