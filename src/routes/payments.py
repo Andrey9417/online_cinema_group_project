@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import Annotated
 
 import stripe
@@ -6,8 +7,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.dependencies import get_current_user
+from crud.payments import list_payments
 from database import get_db_session
-from database.models import User
+from database.models import Payment, PaymentStatusEnum, User
 from exceptions.payments import (
     EmptyOrder,
     InvalidWebhook,
@@ -18,7 +20,8 @@ from exceptions.payments import (
 )
 from payments.services import checkout_order_service, handle_stripe_event_service, payment_success_service
 from payments.stripe_gateway import construct_webhook_event, get_stripe_client
-from schemas.payments import CheckoutResponseSchema, PaymentMessageSchema
+from schemas.payments import CheckoutResponseSchema, PaymentMessageSchema, PaymentSchema
+from services.users import is_regular_user
 
 logger = logging.getLogger(__name__)
 
@@ -98,3 +101,23 @@ async def payment_success(session_id: str, client: StripeClientDep) -> PaymentMe
 @router.get("/cancel", response_model=PaymentMessageSchema)
 async def payment_cancel() -> PaymentMessageSchema:
     return PaymentMessageSchema(message="Payment was not completed. Try again or use a different payment method")
+
+
+@router.get("", response_model=list[PaymentSchema])
+async def get_payments(
+        db: ASession,
+        current_user: CUser,
+        user_id: int | None = None,
+        payment_status: PaymentStatusEnum | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+) -> list[Payment]:
+    if is_regular_user(current_user):
+        user_id = current_user.id
+    return await list_payments(
+        db=db,
+        user_id=user_id,
+        status=payment_status,
+        start_date=start_date,
+        end_date=end_date,
+    )
