@@ -43,7 +43,11 @@ router = APIRouter(tags=["reference"])
 
 
 # ---------- genres ----------
-@router.get("/genres/", response_model=list[GenreSchema])
+@router.get(
+    "/genres/",
+    response_model=list[GenreSchema],
+    summary="List genres",
+)
 async def list_genres(
         db: AsyncSession = Depends(get_db_session),
 ) -> Sequence[Genre]:
@@ -54,6 +58,12 @@ async def list_genres(
     "/genres/",
     response_model=GenreSchema,
     status_code=status.HTTP_201_CREATED,
+    summary="Create a genre",
+    description="Moderator only.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        409: {"description": "Genre with this name already exists"},
+    },
 )
 async def add_genre(
         data: GenreCreateSchema,
@@ -69,7 +79,17 @@ async def add_genre(
     return genre
 
 
-@router.put("/genres/{genre_id}/", response_model=GenreSchema)
+@router.put(
+    "/genres/{genre_id}/",
+    response_model=GenreSchema,
+    summary="Update a genre",
+    description="Moderator only.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        404: {"description": "Genre not found"},
+        409: {"description": "Genre with this name already exists"},
+    },
+)
 async def edit_genre(
         genre_id: int,
         data: GenreCreateSchema,
@@ -90,7 +110,16 @@ async def edit_genre(
     return genre
 
 
-@router.delete("/genres/{genre_id}/", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/genres/{genre_id}/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a genre",
+    description="Moderator only.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        404: {"description": "Genre not found"},
+    },
+)
 async def remove_genre(
         genre_id: int,
         db: AsyncSession = Depends(get_db_session),
@@ -105,7 +134,11 @@ async def remove_genre(
 
 
 # ---------- stars ----------
-@router.get("/stars/", response_model=list[StarSchema])
+@router.get(
+    "/stars/",
+    response_model=list[StarSchema],
+    summary="List stars",
+)
 async def list_stars(
         db: AsyncSession = Depends(get_db_session),
 ) -> Sequence[Star]:
@@ -116,6 +149,12 @@ async def list_stars(
     "/stars/",
     response_model=StarSchema,
     status_code=status.HTTP_201_CREATED,
+    summary="Create a star",
+    description="Moderator only.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        409: {"description": "Star with this name already exists"},
+    },
 )
 async def add_star(
         data: StarCreateSchema,
@@ -131,7 +170,17 @@ async def add_star(
     return star
 
 
-@router.put("/stars/{star_id}/", response_model=StarSchema)
+@router.put(
+    "/stars/{star_id}/",
+    response_model=StarSchema,
+    summary="Update a star",
+    description="Moderator only.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        404: {"description": "Star not found"},
+        409: {"description": "Star with this name already exists"},
+    },
+)
 async def edit_star(
         star_id: int,
         data: StarCreateSchema,
@@ -152,7 +201,16 @@ async def edit_star(
     return star
 
 
-@router.delete("/stars/{star_id}/", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/stars/{star_id}/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a star",
+    description="Moderator only.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        404: {"description": "Star not found"},
+    },
+)
 async def remove_star(
         star_id: int,
         db: AsyncSession = Depends(get_db_session),
@@ -167,7 +225,11 @@ async def remove_star(
 
 
 # ---------- directors ----------
-@router.get("/directors/", response_model=list[DirectorSchema])
+@router.get(
+    "/directors/",
+    response_model=list[DirectorSchema],
+    summary="List directors",
+)
 async def list_directors(
         db: AsyncSession = Depends(get_db_session),
 ) -> Sequence[Director]:
@@ -178,6 +240,12 @@ async def list_directors(
     "/directors/",
     response_model=DirectorSchema,
     status_code=status.HTTP_201_CREATED,
+    summary="Create a director",
+    description="Moderator only.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        409: {"description": "Director with this name already exists"},
+    },
 )
 async def add_director(
         data: DirectorCreateSchema,
@@ -193,7 +261,17 @@ async def add_director(
     return director
 
 
-@router.put("/directors/{director_id}/", response_model=DirectorSchema)
+@router.put(
+    "/directors/{director_id}/",
+    response_model=DirectorSchema,
+    summary="Update a director",
+    description="Moderator only.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        404: {"description": "Director not found"},
+        409: {"description": "Director with this name already exists"},
+    },
+)
 async def edit_director(
         director_id: int,
         data: DirectorCreateSchema,
@@ -217,6 +295,12 @@ async def edit_director(
 @router.delete(
     "/directors/{director_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a director",
+    description="Moderator only.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        404: {"description": "Director not found"},
+    },
 )
 async def remove_director(
         director_id: int,
@@ -232,7 +316,11 @@ async def remove_director(
 
 
 # ---------- certifications ----------
-@router.get("/certifications/", response_model=list[CertificationSchema])
+@router.get(
+    "/certifications/",
+    response_model=list[CertificationSchema],
+    summary="List certifications",
+)
 async def list_certifications(
         db: AsyncSession = Depends(get_db_session),
 ) -> Sequence[Certification]:
@@ -243,6 +331,12 @@ async def list_certifications(
     "/certifications/",
     response_model=CertificationSchema,
     status_code=status.HTTP_201_CREATED,
+    summary="Create a certification",
+    description="Moderator only.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        409: {"description": "Certification with this name already exists"},
+    },
 )
 async def add_certification(
         data: CertificationCreateSchema,
@@ -261,6 +355,13 @@ async def add_certification(
 @router.put(
     "/certifications/{certification_id}/",
     response_model=CertificationSchema,
+    summary="Update a certification",
+    description="Moderator only.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        404: {"description": "Certification not found"},
+        409: {"description": "Certification with this name already exists"},
+    },
 )
 async def edit_certification(
         certification_id: int,
@@ -285,6 +386,12 @@ async def edit_certification(
 @router.delete(
     "/certifications/{certification_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a certification",
+    description="Moderator only.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        404: {"description": "Certification not found"},
+    },
 )
 async def remove_certification(
         certification_id: int,
