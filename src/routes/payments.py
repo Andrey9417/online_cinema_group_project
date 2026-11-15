@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime
 from typing import Annotated
 
@@ -16,14 +15,18 @@ from exceptions.payments import (
     MoviesAlreadyPurchased,
     OrderNotFound,
     OrderNotPayable,
+    OrderNotRefundable,
     PaymentGatewayError,
 )
-from payments.services import checkout_order_service, handle_stripe_event_service, payment_success_service
+from payments.services import (
+    checkout_order_service,
+    handle_stripe_event_service,
+    payment_success_service,
+    refund_order_service,
+)
 from payments.stripe_gateway import construct_webhook_event, get_stripe_client
 from schemas.payments import CheckoutResponseSchema, PaymentMessageSchema, PaymentSchema
 from services.users import is_regular_user
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -61,7 +64,32 @@ async def checkout_order(
             detail=str(e)
         ) from e
     except PaymentGatewayError as e:
-        logger.exception("Stripe checkout failed for order %s", order_id)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(e)
+        ) from e
+
+
+@router.post("/orders/{order_id}/refund", response_model=PaymentMessageSchema)
+async def refund_order(
+        order_id: int,
+        db: ASession,
+        current_user: CUser,
+        client: StripeClientDep,
+) -> PaymentMessageSchema:
+    try:
+        return await refund_order_service(db=db, client=client, user=current_user, order_id=order_id)
+    except OrderNotFound as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        ) from e
+    except OrderNotRefundable as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        ) from e
+    except PaymentGatewayError as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(e)

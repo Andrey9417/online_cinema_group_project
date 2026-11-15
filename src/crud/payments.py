@@ -12,6 +12,13 @@ async def payment_exists(db: AsyncSession, external_payment_id: str) -> bool:
     )
 
 
+async def get_successful_payments(db: AsyncSession, order_id: int) -> list[Payment]:
+    payments = await db.scalars(
+        select(Payment).where(Payment.order_id == order_id, Payment.status == PaymentStatusEnum.SUCCESSFUL)
+    )
+    return list(payments.all())
+
+
 async def list_payments(
         db: AsyncSession,
         user_id: int | None = None,

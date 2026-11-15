@@ -66,6 +66,14 @@ async def retrieve_checkout_session(client: stripe.StripeClient, session_id: str
         raise PaymentGatewayError("Could not retrieve payment session, try again later") from e
 
 
+async def refund_checkout_session(client: stripe.StripeClient, session_id: str) -> None:
+    try:
+        checkout_session = await client.v1.checkout.sessions.retrieve_async(session_id)
+        await client.v1.refunds.create_async(params={"payment_intent": checkout_session.payment_intent})
+    except stripe.StripeError as e:
+        raise PaymentGatewayError("Could not refund payment, try again later") from e
+
+
 def construct_webhook_event(
         client: stripe.StripeClient,
         payload: bytes,

@@ -20,3 +20,7 @@ class MoviesAlreadyPurchased(Exception):
 
 class InvalidWebhook(Exception):
     pass
+
+
+class OrderNotRefundable(Exception):
+    pass

@@ -4,10 +4,22 @@ import stripe
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.orders import get_movies_by_user_id_and_order_status, get_order_with_movies_by_id
-from crud.payments import payment_exists
+from crud.payments import get_successful_payments, payment_exists
 from database.models import OrderStatusEnum, Payment, PaymentItem, PaymentStatusEnum, User
-from exceptions.payments import EmptyOrder, MoviesAlreadyPurchased, OrderNotFound, OrderNotPayable
-from payments.stripe_gateway import create_checkout_session, from_cents, get_order_id, retrieve_checkout_session
+from exceptions.payments import (
+    EmptyOrder,
+    MoviesAlreadyPurchased,
+    OrderNotFound,
+    OrderNotPayable,
+    OrderNotRefundable,
+)
+from payments.stripe_gateway import (
+    create_checkout_session,
+    from_cents,
+    get_order_id,
+    refund_checkout_session,
+    retrieve_checkout_session,
+)
 from schemas.payments import CheckoutResponseSchema, PaymentMessageSchema
 
 
@@ -91,3 +103,24 @@ async def payment_success_service(client: stripe.StripeClient, session_id: str) 
     if checkout_session.payment_status == "paid":
         return PaymentMessageSchema(message="Payment completed successfully")
     return PaymentMessageSchema(message="Payment is not completed yet")
+
+
+async def refund_order_service(
+        db: AsyncSession,
+        client: stripe.StripeClient,
+        user: User,
+        order_id: int,
+) -> PaymentMessageSchema:
+    order = await get_order_with_movies_by_id(db=db, order_id=order_id, user_id=user.id, for_update=True)
+    if order is None:
+        raise OrderNotFound("Order not found")
+
+    if order.status != OrderStatusEnum.PAID:
+        raise OrderNotRefundable(f"Order with status '{order.status}' cannot be refunded")
+
+    for payment in await get_successful_payments(db=db, order_id=order.id):
+        await refund_checkout_session(client, payment.external_payment_id)
+        payment.status = PaymentStatusEnum.REFUNDED
+    order.status = OrderStatusEnum.CANCELED
+    await db.commit()
+    return PaymentMessageSchema(message="Order canceled, payment refunded")
