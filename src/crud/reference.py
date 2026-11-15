@@ -1,184 +1,177 @@
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import select, delete
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Genre, Star, Director, Certification
-from schemas.movies import (
-    GenreCreateSchema,
-    StarCreateSchema,
-    DirectorCreateSchema,
-    CertificationCreateSchema,
-)
 
 
-async def create_genre(
-        db: AsyncSession, genre_data: GenreCreateSchema
-) -> Genre:
-    genre = Genre(**genre_data.model_dump())
-    db.add(genre)
-    await db.commit()
-    await db.refresh(genre)
-    return genre
+# ---------- genres ----------
+async def get_genre_by_id(db: AsyncSession, genre_id: int) -> Genre | None:
+    return await db.get(Genre, genre_id)
 
 
 async def get_genres(db: AsyncSession) -> Sequence[Genre]:
-    stmt = select(Genre).order_by(Genre.id)
-    result = await db.execute(stmt)
+    result = await db.execute(select(Genre).order_by(Genre.id))
     return result.scalars().all()
 
 
-async def update_genre(
-        db: AsyncSession,
-        genre_id: int,
-        genre_data: GenreCreateSchema
-) -> Genre | None:
-    genre = await db.get(Genre, genre_id)
-
-    if genre is None:
+async def create_genre(db: AsyncSession, name: str) -> Genre | None:
+    genre = Genre(name=name)
+    db.add(genre)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
         return None
-
-    genre.name = genre_data.name
-    await db.commit()
     await db.refresh(genre)
     return genre
 
 
-async def delete_genre(db: AsyncSession, genre_id: int) -> bool:
-    genre = await db.get(Genre, genre_id)
-
-    if genre is None:
+async def update_genre(db: AsyncSession, genre: Genre, name: str) -> bool:
+    genre.name = name
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
         return False
-
-    await db.delete(genre)
-    await db.commit()
+    await db.refresh(genre)
     return True
 
 
-async def create_star(
-        db: AsyncSession, star_data: StarCreateSchema
-) -> Star:
-    star = Star(**star_data.model_dump())
-    db.add(star)
+async def delete_genre(db: AsyncSession, genre_id: int) -> bool:
+    result = await db.execute(delete(Genre).where(Genre.id == genre_id))
     await db.commit()
-    await db.refresh(star)
-    return star
+    return result.rowcount > 0
+
+
+# ---------- stars ----------
+async def get_star_by_id(db: AsyncSession, star_id: int) -> Star | None:
+    return await db.get(Star, star_id)
 
 
 async def get_stars(db: AsyncSession) -> Sequence[Star]:
-    stmt = select(Star).order_by(Star.id)
-    result = await db.execute(stmt)
+    result = await db.execute(select(Star).order_by(Star.id))
     return result.scalars().all()
 
 
-async def update_star(
-        db: AsyncSession,
-        star_id: int,
-        star_data: StarCreateSchema
-) -> Star | None:
-    star = await db.get(Star, star_id)
-
-    if star is None:
+async def create_star(db: AsyncSession, name: str) -> Star | None:
+    star = Star(name=name)
+    db.add(star)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
         return None
-
-    star.name = star_data.name
-    await db.commit()
     await db.refresh(star)
     return star
 
 
-async def delete_star(db: AsyncSession, star_id: int) -> bool:
-    star = await db.get(Star, star_id)
-
-    if star is None:
+async def update_star(db: AsyncSession, star: Star, name: str) -> bool:
+    star.name = name
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
         return False
-
-    await db.delete(star)
-    await db.commit()
+    await db.refresh(star)
     return True
 
 
-async def create_director(
-        db: AsyncSession, director_data: DirectorCreateSchema
-) -> Director:
-    director = Director(**director_data.model_dump())
-    db.add(director)
+async def delete_star(db: AsyncSession, star_id: int) -> bool:
+    result = await db.execute(delete(Star).where(Star.id == star_id))
     await db.commit()
-    await db.refresh(director)
-    return director
+    return result.rowcount > 0
+
+
+# ---------- directors ----------
+async def get_director_by_id(
+        db: AsyncSession, director_id: int
+) -> Director | None:
+    return await db.get(Director, director_id)
 
 
 async def get_directors(db: AsyncSession) -> Sequence[Director]:
-    stmt = select(Director).order_by(Director.id)
-    result = await db.execute(stmt)
+    result = await db.execute(select(Director).order_by(Director.id))
     return result.scalars().all()
 
 
-async def update_director(
-        db: AsyncSession,
-        director_id: int,
-        director_data: DirectorCreateSchema
-) -> Director | None:
-    director = await db.get(Director, director_id)
-
-    if director is None:
+async def create_director(db: AsyncSession, name: str) -> Director | None:
+    director = Director(name=name)
+    db.add(director)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
         return None
-
-    director.name = director_data.name
-    await db.commit()
     await db.refresh(director)
     return director
 
 
-async def delete_director(db: AsyncSession, director_id: int) -> bool:
-    director = await db.get(Director, director_id)
-
-    if director is None:
+async def update_director(
+        db: AsyncSession, director: Director, name: str
+) -> bool:
+    director.name = name
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
         return False
-
-    await db.delete(director)
-    await db.commit()
+    await db.refresh(director)
     return True
 
 
-async def create_certification(
-        db: AsyncSession, certification_data: CertificationCreateSchema
-) -> Certification:
-    certification = Certification(**certification_data.model_dump())
-    db.add(certification)
+async def delete_director(db: AsyncSession, director_id: int) -> bool:
+    result = await db.execute(
+        delete(Director).where(Director.id == director_id)
+    )
     await db.commit()
-    await db.refresh(certification)
-    return certification
+    return result.rowcount > 0
+
+
+# ---------- certifications ----------
+async def get_certification_by_id(
+        db: AsyncSession, certification_id: int
+) -> Certification | None:
+    return await db.get(Certification, certification_id)
 
 
 async def get_certifications(db: AsyncSession) -> Sequence[Certification]:
-    stmt = select(Certification).order_by(Certification.id)
-    result = await db.execute(stmt)
+    result = await db.execute(select(Certification).order_by(Certification.id))
     return result.scalars().all()
 
 
-async def update_certification(
-        db: AsyncSession,
-        certification_id: int,
-        certification_data: CertificationCreateSchema
+async def create_certification(
+        db: AsyncSession, name: str
 ) -> Certification | None:
-    certification = await db.get(Certification, certification_id)
-
-    if certification is None:
+    certification = Certification(name=name)
+    db.add(certification)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
         return None
-
-    certification.name = certification_data.name
-    await db.commit()
     await db.refresh(certification)
     return certification
 
 
-async def delete_certification(db: AsyncSession, certification_id: int) -> bool:
-    certification = await db.get(Certification, certification_id)
-
-    if certification is None:
+async def update_certification(
+        db: AsyncSession, certification: Certification, name: str
+) -> bool:
+    certification.name = name
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
         return False
-
-    await db.delete(certification)
-    await db.commit()
+    await db.refresh(certification)
     return True
+
+
+async def delete_certification(db: AsyncSession, certification_id: int) -> bool:
+    result = await db.execute(
+        delete(Certification).where(Certification.id == certification_id)
+    )
+    await db.commit()
+    return result.rowcount > 0

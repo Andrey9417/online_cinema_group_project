@@ -17,19 +17,12 @@ from crud.movies import (
     add_favorite,
     remove_favorite,
     get_favorite_movies,
-    get_genre_by_id,
     get_movies_by_genre,
     get_genres_with_count,
-    create_genre,
-    update_genre,
-    delete_genre,
-    get_star_by_id,
-    create_star,
-    update_star,
-    delete_star,
     set_rating,
     remove_rating,
 )
+from crud.reference import get_genre_by_id
 from schemas.likes import MovieLikeSchema, MovieLikeCreateSchema, MovieReactionsSchema
 from schemas.movies import (
     MovieDetailSchema,
@@ -39,10 +32,6 @@ from schemas.movies import (
     MessageResponseSchema,
     GenreWithCountSchema,
     MovieRatingSchema,
-    GenreSchema,
-    GenreCreateSchema,
-    StarSchema,
-    StarCreateSchema,
 )
 
 router = APIRouter(prefix="/movies", tags=["movies"])
@@ -263,84 +252,6 @@ async def list_genre_movies(
         "total_pages": total_pages,
         "total_items": total,
     }
-
-
-@router.post("/genres/", response_model=GenreSchema, status_code=status.HTTP_201_CREATED)
-async def add_genre(
-        data: GenreCreateSchema,
-        db: AsyncSession = Depends(get_db_session),
-        moderator: User = Depends(require_moderator),
-):
-    genre = await create_genre(db, data.name)
-    if genre is None:
-        raise HTTPException(status_code=409, detail="Genre with this name already exists.")
-    return genre
-
-
-@router.put("/genres/{genre_id}/", response_model=GenreSchema)
-async def edit_genre(
-        genre_id: int,
-        data: GenreCreateSchema,
-        db: AsyncSession = Depends(get_db_session),
-        moderator: User = Depends(require_moderator),
-):
-    genre = await get_genre_by_id(db, genre_id)
-    if genre is None:
-        raise HTTPException(status_code=404, detail="Genre not found.")
-
-    if not await update_genre(db, genre, data.name):
-        raise HTTPException(status_code=409, detail="Genre with this name already exists.")
-    return genre
-
-
-@router.delete("/genres/{genre_id}/", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_genre(
-        genre_id: int,
-        db: AsyncSession = Depends(get_db_session),
-        moderator: User = Depends(require_moderator),
-):
-    if not await delete_genre(db, genre_id):
-        raise HTTPException(status_code=404, detail="Genre not found.")
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.post("/stars/", response_model=StarSchema, status_code=status.HTTP_201_CREATED)
-async def add_star(
-        data: StarCreateSchema,
-        db: AsyncSession = Depends(get_db_session),
-        moderator: User = Depends(require_moderator),
-):
-    star = await create_star(db, data.name)
-    if star is None:
-        raise HTTPException(status_code=409, detail="Star with this name already exists.")
-    return star
-
-
-@router.put("/stars/{star_id}/", response_model=StarSchema)
-async def edit_star(
-        star_id: int,
-        data: StarCreateSchema,
-        db: AsyncSession = Depends(get_db_session),
-        moderator: User = Depends(require_moderator),
-):
-    star = await get_star_by_id(db, star_id)
-    if star is None:
-        raise HTTPException(status_code=404, detail="Star not found.")
-
-    if not await update_star(db, star, data.name):
-        raise HTTPException(status_code=409, detail="Star with this name already exists.")
-    return star
-
-
-@router.delete("/stars/{star_id}/", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_star(
-        star_id: int,
-        db: AsyncSession = Depends(get_db_session),
-        moderator: User = Depends(require_moderator),
-):
-    if not await delete_star(db, star_id):
-        raise HTTPException(status_code=404, detail="Star not found.")
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
