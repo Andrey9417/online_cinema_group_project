@@ -11,7 +11,7 @@ from exceptions.carts import EntityNotFound, DBError, EntityAlreadyExists
 from schemas.carts import CartResponseSchema, CartItemCreateSchema
 from services.carts import get_or_create_cart, clear_user_cart, delete_movie_from_cart, add_item_to_cart
 
-router = APIRouter(prefix="/carts")
+router = APIRouter(prefix="/carts", tags=["carts"])
 
 ASession = Annotated[AsyncSession, Depends(get_db_session)]
 CUser = Annotated[User, Depends(get_current_user)]
