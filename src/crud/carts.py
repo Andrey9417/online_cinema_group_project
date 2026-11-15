@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
-from database.models import Cart, CartItem
+from database.models import Cart, CartItem, Movie
 from exceptions.carts import DBError, EntityNotFound, PgErrorCode, EntityAlreadyExists
 
 
@@ -11,7 +11,11 @@ async def get_cart_by_user(db: AsyncSession, user_id: int) -> Cart | None:
     stmt = (
         select(Cart)
         .where(Cart.user_id == user_id)
-        .options(selectinload(Cart.items).selectinload(CartItem.movie))
+        .options(
+            selectinload(Cart.items)
+            .selectinload(CartItem.movie)
+            .selectinload(Movie.genres)
+        )
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()

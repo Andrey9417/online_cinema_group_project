@@ -89,7 +89,10 @@ async def moderator_get_cart_by_user_id(
         user_id: int,
 ) -> Cart:
 
-    if admin.group not in (UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN):
+    if admin.group is None or admin.group.name not in (
+            UserGroupEnum.MODERATOR.value,
+            UserGroupEnum.ADMIN.value,
+    ):
         raise StaffRequired("User must be a moderator or admin.")
 
     cart = await get_cart_by_user(db=db, user_id=user_id)
@@ -98,3 +101,10 @@ async def moderator_get_cart_by_user_id(
         raise EntityNotFound("Cart not found.")
 
     return cart
+
+
+async def check_order_status(
+        db: AsyncSession,
+        movie_id: int,
+):
+    pass
