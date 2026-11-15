@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [aws_deploy]
+    branches: [develop]
   workflow_dispatch:
 
 concurrency:
