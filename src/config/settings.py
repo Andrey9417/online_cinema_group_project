@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: str = os.getenv("MINIO_STORAGE", "cinema-storage")
     S3_PUBLIC_URL: str = os.getenv("S3_PUBLIC_URL", "http://localhost:9000")
 
+
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 60
 
     @property
