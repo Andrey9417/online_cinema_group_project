@@ -11,6 +11,7 @@ RUN apt-get update && \
 
 # Copy commands
 COPY ./commands/set_nginx_basic_auth.sh /commands/set_nginx_basic_auth.sh
+COPY ./configs/nginx/nginx.conf /etc/nginx/nginx.conf
 
 # Ensure Unix-style line endings for scripts
 RUN dos2unix /commands/*.sh
