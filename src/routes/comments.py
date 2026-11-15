@@ -33,7 +33,9 @@ router = APIRouter(tags=["comments"])
 @router.post(
     "/movies/{movie_id}/comments/",
     response_model=CommentSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a comment to a movie",
+    responses={404: {"description": "Movie not found"}},
 )
 async def add_comment(
         movie_id: int,
@@ -51,7 +53,8 @@ async def add_comment(
 
 @router.get(
     "/movies/{movie_id}/comments/",
-    response_model=list[CommentSchema]
+    response_model=list[CommentSchema],
+    summary="List movie comments",
 )
 async def list_comments(
         movie_id: int,
@@ -63,7 +66,9 @@ async def list_comments(
 @router.post(
     "/comments/{comment_id}/reply/",
     response_model=CommentSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    summary="Reply to a comment",
+    responses={404: {"description": "Parent comment not found"}},
 )
 async def add_reply(
         comment_id: int,
@@ -77,7 +82,16 @@ async def add_reply(
     return reply
 
 
-@router.put("/comments/{comment_id}/", response_model=CommentSchema)
+@router.put(
+    "/comments/{comment_id}/",
+    response_model=CommentSchema,
+    summary="Edit a comment",
+    description="Only the comment's author can edit it.",
+    responses={
+        403: {"description": "Not the comment's author"},
+        404: {"description": "Comment not found"},
+    },
+)
 async def edit_comment(
         comment_id: int,
         comment_data: CommentCreateSchema,
@@ -92,7 +106,16 @@ async def edit_comment(
     return await update_comment(db, comment, comment_data)
 
 
-@router.delete("/comments/{comment_id}/", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/comments/{comment_id}/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a comment",
+    description="Only the comment's author can delete it.",
+    responses={
+        403: {"description": "Not the comment's author"},
+        404: {"description": "Comment not found"},
+    },
+)
 async def remove_comment(
         comment_id: int,
         current_user: User = Depends(get_current_user),
@@ -110,6 +133,8 @@ async def remove_comment(
     "/comments/{comment_id}/reactions/",
     response_model=CommentLikeSchema,
     status_code=status.HTTP_201_CREATED,
+    summary="Like or dislike a comment",
+    responses={404: {"description": "Comment not found"}},
 )
 async def set_comment_like(
         comment_id: int,
@@ -131,6 +156,8 @@ async def set_comment_like(
 @router.delete(
     "/comments/{comment_id}/reactions/",
     status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove comment reaction",
+    responses={404: {"description": "Reaction not found"}},
 )
 async def delete_comment_like(
         comment_id: int,
@@ -151,6 +178,8 @@ async def delete_comment_like(
 @router.get(
     "/comments/{comment_id}/reactions/",
     response_model=CommentReactionsSchema,
+    summary="Get comment like/dislike counts",
+    responses={404: {"description": "Comment not found"}},
 )
 async def comment_reactions(
         comment_id: int,

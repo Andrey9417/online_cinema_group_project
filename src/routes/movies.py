@@ -20,7 +20,7 @@ from crud.movies import (
     get_movies_by_genre,
     get_genres_with_count,
     set_rating,
-    remove_rating,
+    remove_rating, movie_is_purchased,
 )
 from crud.reference import get_genre_by_id
 from schemas.likes import MovieLikeSchema, MovieLikeCreateSchema, MovieReactionsSchema
@@ -31,7 +31,7 @@ from schemas.movies import (
     MovieUpdateSchema,
     MessageResponseSchema,
     GenreWithCountSchema,
-    MovieRatingSchema,
+    MovieRatingSchema, MovieSortField, SortOrder,
 )
 
 router = APIRouter(prefix="/movies", tags=["movies"])
@@ -70,7 +70,12 @@ async def list_genres(db: AsyncSession = Depends(get_db_session)):
     return await get_genres_with_count(db)
 
 
-@router.get("/{movie_id}/", response_model=MovieDetailSchema)
+@router.get(
+    "/{movie_id}/",
+    response_model=MovieDetailSchema,
+    summary="Get movie details",
+    responses={404: {"description": "Movie not found"}},
+)
 async def movie_detail(
         movie_id: int,
         db: AsyncSession = Depends(get_db_session)
@@ -86,7 +91,17 @@ async def movie_detail(
     return movie
 
 
-@router.get("/", response_model=MovieListResponseSchema)
+@router.get(
+    "/",
+    response_model=MovieListResponseSchema,
+    summary="List movies",
+    description=(
+            "Paginated movie catalog with filtering (release year, minimum "
+            "IMDb rating, maximum price, certification), full-text search "
+            "(title, description, star, director) and sorting by price, year, "
+            "votes, IMDb or popularity."
+    ),
+)
 async def movie_list(
         page: int = Query(1, ge=1, description="Page number (1-based index)"),
         per_page: int = Query(
@@ -95,7 +110,8 @@ async def movie_list(
             le=20,
             description="Number of items per page"
         ),
-        sort_by: str | None = Query(None),
+        sort_by: MovieSortField = Query(MovieSortField.year),
+        order: SortOrder = Query(SortOrder.desc),
         search: str | None = Query(
             None,
             description="Search by title, description, actor or director",
@@ -111,6 +127,7 @@ async def movie_list(
         page,
         per_page,
         sort_by=sort_by,
+        order=order,
         search=search,
         year=year,
         min_imdb=min_imdb,
@@ -140,6 +157,12 @@ async def movie_list(
     "/",
     response_model=MovieDetailSchema,
     status_code=status.HTTP_201_CREATED,
+    summary="Create a movie",
+    description="Moderator only. Validates field ranges (year, IMDb, etc.).",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        422: {"description": "Validation error"},
+    },
 )
 async def add_movie(
         movie_data: MovieCreateSchema,
@@ -150,7 +173,17 @@ async def add_movie(
     return await get_movie_by_id(db, movie.id)
 
 
-@router.put("/{movie_id}/", response_model=MovieDetailSchema)
+@router.put(
+    "/{movie_id}/",
+    response_model=MovieDetailSchema,
+    summary="Update a movie",
+    description="Moderator only. Partial update — only provided fields change.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        404: {"description": "Movie not found"},
+        422: {"description": "Validation error"},
+    },
+)
 async def edit_movie(
         movie_id: int,
         movie_data: MovieUpdateSchema,
@@ -161,17 +194,6 @@ async def edit_movie(
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
     return await get_movie_by_id(db, movie_id)
-
-
-@router.delete("/{movie_id}/", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_movie(
-        movie_id: int,
-        db: AsyncSession = Depends(get_db_session),
-        moderator: User = Depends(require_moderator),
-) -> None:
-    deleted = await delete_movie(db, movie_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Movie not found")
 
 
 @router.post(
@@ -256,7 +278,10 @@ async def list_genre_movies(
 
 @router.post(
     "/{movie_id}/like/",
-    response_model=MovieLikeSchema
+    response_model=MovieLikeSchema,
+    summary="Like or dislike a movie",
+    description="Sets or updates the current user's reaction to the movie.",
+    responses={404: {"description": "Movie not found"}},
 )
 async def set_like(
         movie_id: int,
@@ -274,7 +299,9 @@ async def set_like(
 
 @router.delete(
     "/{movie_id}/like/",
-    status_code=status.HTTP_204_NO_CONTENT
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove movie reaction",
+    responses={404: {"description": "Reaction not found"}},
 )
 async def delete_like(
         movie_id: int,
@@ -290,6 +317,8 @@ async def delete_like(
 @router.get(
     "/{movie_id}/likes/",
     response_model=MovieReactionsSchema,
+    summary="Get movie like/dislike counts",
+    responses={404: {"description": "Movie not found"}},
 )
 async def movie_reactions(
         movie_id: int,
@@ -301,3 +330,34 @@ async def movie_reactions(
         raise HTTPException(status_code=404, detail="Movie not found")
 
     return await get_movie_reactions(db, movie_id)
+
+
+@router.delete(
+    "/{movie_id}/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a movie",
+    description="Moderator only. Blocked if the movie was already purchased.",
+    responses={
+        403: {"description": "Moderator permissions required"},
+        404: {"description": "Movie not found"},
+        409: {"description": "Movie has been purchased and cannot be deleted"},
+    },
+)
+async def remove_movie(
+        movie_id: int,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
+) -> Response:
+    movie = await get_movie_by_id(db, movie_id)
+    if movie is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie not found.",
+        )
+    if await movie_is_purchased(db, movie_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete a movie that has been purchased.",
+        )
+    await delete_movie(db, movie_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

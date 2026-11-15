@@ -3,6 +3,21 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from enum import Enum
+
+
+class MovieSortField(str, Enum):
+    price = "price"
+    year = "year"
+    votes = "votes"
+    imdb = "imdb"
+    popularity = "popularity"
+
+
+class SortOrder(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
 
 class GenreSchema(BaseModel):
     id: int
@@ -57,15 +72,15 @@ class CertificationCreateSchema(BaseModel):
 
 
 class MovieBaseSchema(BaseModel):
-    name: str
-    year: int
-    time: int
-    imdb: float
-    votes: int
-    meta_score: float | None = None
-    gross: float | None = None
+    name: str = Field(max_length=255)
+    year: int = Field(ge=1888, le=2100)
+    time: int = Field(ge=1, le=1200)
+    imdb: float = Field(ge=0, le=10)
+    votes: int = Field(ge=0)
+    meta_score: float | None = Field(None, ge=0, le=100)
+    gross: Decimal | None = Field(None, ge=0)
     description: str
-    price: Decimal
+    price: Decimal = Field(ge=0)
 
 
 class MovieListItemSchema(BaseModel):
@@ -109,14 +124,14 @@ class MovieCreateSchema(MovieBaseSchema):
 
 class MovieUpdateSchema(BaseModel):
     name: str | None = None
-    year: int | None = None
-    time: int | None = None
-    imdb: float | None = None
-    votes: int | None = None
-    meta_score: float | None = None
-    gross: float | None = None
+    year: int | None = Field(None, ge=1888, le=2100)
+    time: int | None = Field(None, ge=1, le=1200)
+    imdb: float | None = Field(None, ge=0, le=10)
+    votes: int | None = Field(None, ge=0)
+    meta_score: float | None = Field(None, ge=0, le=100)
+    gross: Decimal | None = Field(None, ge=0)
     description: str | None = None
-    price: Decimal | None = None
+    price: Decimal | None = Field(None, ge=0)
     certification_id: int | None = None
     genre_ids: list[int] | None = None
     star_ids: list[int] | None = None
