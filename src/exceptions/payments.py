@@ -16,3 +16,11 @@ class EmptyOrder(Exception):
 
 class MoviesAlreadyPurchased(Exception):
     pass
+
+
+class InvalidWebhook(Exception):
+    pass
+
+
+class OrderNotRefundable(Exception):
+    pass
