@@ -8,8 +8,8 @@ from crud.carts import (
     add_movie_to_cart
 )
 from crud.movies import get_movie_by_id
-from database.models import Cart
-from exceptions.carts import EntityAlreadyExists, DBError, EntityNotFound
+from database.models import Cart, User, UserGroupEnum
+from exceptions.carts import EntityAlreadyExists, DBError, EntityNotFound, StaffRequired
 
 
 async def get_or_create_cart(db: AsyncSession, user_id: int) -> Cart:
@@ -79,5 +79,22 @@ async def add_item_to_cart(
     db.expire(cart)
 
     cart = await get_cart_by_user(db=db, user_id=user_id)
+
+    return cart
+
+
+async def moderator_get_cart_by_user_id(
+        db: AsyncSession,
+        admin: User,
+        user_id: int,
+) -> Cart:
+
+    if admin.group not in (UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN):
+        raise StaffRequired("User must be a moderator or admin.")
+
+    cart = await get_cart_by_user(db=db, user_id=user_id)
+
+    if cart is None:
+        raise EntityNotFound("Cart not found.")
 
     return cart

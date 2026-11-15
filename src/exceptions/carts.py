@@ -12,6 +12,10 @@ class CartBaseError(Exception):
     pass
 
 
+class StaffRequired(CartBaseError):
+    pass
+
+
 class DBError(CartBaseError):
     pass
 
