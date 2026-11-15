@@ -127,12 +127,25 @@ services:
     restart: always
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - certbot_www:/var/www/certbot:ro
+      - certbot_certs:/etc/letsencrypt:ro
     depends_on:
       - web
     env_file:
       - ./docker/nginx/.env
 
+  certbot:
+    image: certbot/certbot
+    profiles: [ "certbot" ]
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_certs:/etc/letsencrypt
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  certbot_www:
+  certbot_certs:
