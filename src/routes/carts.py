@@ -122,7 +122,8 @@ async def add_movie_to_my_cart(
         return await add_item_to_cart(
             db=db,
             user_id=current_user.id,
-            movie_id=data.movie_id
+            movie_id=data.movie_id,
+            user_email=current_user.email
         )
     except EntityNotFound as exc:
         raise HTTPException(
