@@ -39,3 +39,16 @@ def send_password_reset_email(user_email: str, reset_token: str):
         expire_minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
     )
     send_email(user_email, "Reset your password", html)
+
+
+def send_comment_reply_email(user_email: str, original_text: str, reply_text: str):
+    html = jinja.get_template("comment_reply.html").render(
+        original_text=original_text,
+        reply_text=reply_text,
+    )
+    send_email(user_email, "New reply to your comment", html)
+
+
+def send_comment_like_email(user_email: str, comment_text: str):
+    html = jinja.get_template("comment_like.html").render(comment_text=comment_text)
+    send_email(user_email, "Your comment got a like", html)

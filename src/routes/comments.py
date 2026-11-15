@@ -1,8 +1,6 @@
 from collections.abc import Sequence
-
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from config.dependencies import get_current_user
 from crud.comments import (
     create_reply,
@@ -25,6 +23,10 @@ from schemas.likes import (
     CommentLikeCreateSchema,
     CommentLikeSchema,
     CommentReactionsSchema,
+)
+from tasks.emails import (
+    send_comment_reply_email_task,
+    send_comment_like_email_task,
 )
 
 router = APIRouter(tags=["comments"])
@@ -74,6 +76,12 @@ async def add_reply(
     reply = await create_reply(db, comment_id, current_user.id, comment_data)
     if reply is None:
         raise HTTPException(status_code=404, detail="Comment not found")
+    parent = await get_comment(db, comment_id)
+    if parent.user_id != current_user.id:
+        author = await db.get(User, parent.user_id)
+        send_comment_reply_email_task.delay(
+            author.email, parent.text, reply.text
+        )
     return reply
 
 
@@ -123,9 +131,15 @@ async def set_comment_like(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Comment not found",
         )
-    return await set_comment_reaction(
+    reaction = await set_comment_reaction(
         db, current_user.id, comment_id, reaction_data
     )
+
+    if reaction.is_like and comment.user_id != current_user.id:
+        author = await db.get(User, comment.user_id)
+        send_comment_like_email_task.delay(author.email, comment.text)
+
+    return reaction
 
 
 @router.delete(
