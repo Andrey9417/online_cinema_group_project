@@ -16,9 +16,9 @@ from exceptions.payments import (
     OrderNotPayable,
     PaymentGatewayError,
 )
-from payments.services import checkout_order_service, handle_stripe_event_service
+from payments.services import checkout_order_service, handle_stripe_event_service, payment_success_service
 from payments.stripe_gateway import construct_webhook_event, get_stripe_client
-from schemas.payments import CheckoutResponseSchema
+from schemas.payments import CheckoutResponseSchema, PaymentMessageSchema
 
 logger = logging.getLogger(__name__)
 
@@ -82,3 +82,19 @@ async def stripe_webhook(
 
     await handle_stripe_event_service(db=db, event=event)
     return {"received": True}
+
+
+@router.get("/success", response_model=PaymentMessageSchema)
+async def payment_success(session_id: str, client: StripeClientDep) -> PaymentMessageSchema:
+    try:
+        return await payment_success_service(client=client, session_id=session_id)
+    except PaymentGatewayError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(e)
+        ) from e
+
+
+@router.get("/cancel", response_model=PaymentMessageSchema)
+async def payment_cancel() -> PaymentMessageSchema:
+    return PaymentMessageSchema(message="Payment was not completed. Try again or use a different payment method")

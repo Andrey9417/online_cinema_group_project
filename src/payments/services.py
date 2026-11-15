@@ -7,8 +7,8 @@ from crud.orders import get_movies_by_user_id_and_order_status, get_order_with_m
 from crud.payments import payment_exists
 from database.models import OrderStatusEnum, Payment, PaymentItem, PaymentStatusEnum, User
 from exceptions.payments import EmptyOrder, MoviesAlreadyPurchased, OrderNotFound, OrderNotPayable
-from payments.stripe_gateway import create_checkout_session, from_cents, get_order_id
-from schemas.payments import CheckoutResponseSchema
+from payments.stripe_gateway import create_checkout_session, from_cents, get_order_id, retrieve_checkout_session
+from schemas.payments import CheckoutResponseSchema, PaymentMessageSchema
 
 
 async def checkout_order_service(
@@ -84,3 +84,10 @@ async def handle_stripe_event_service(db: AsyncSession, event: stripe.Event) -> 
         await record_payment(db, checkout_session, PaymentStatusEnum.SUCCESSFUL)
     elif event.type == "checkout.session.expired":
         await record_payment(db, checkout_session, PaymentStatusEnum.CANCELED)
+
+
+async def payment_success_service(client: stripe.StripeClient, session_id: str) -> PaymentMessageSchema:
+    checkout_session = await retrieve_checkout_session(client, session_id)
+    if checkout_session.payment_status == "paid":
+        return PaymentMessageSchema(message="Payment completed successfully")
+    return PaymentMessageSchema(message="Payment is not completed yet")
