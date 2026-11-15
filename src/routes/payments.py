@@ -2,7 +2,7 @@ import logging
 from typing import Annotated
 
 import stripe
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.dependencies import get_current_user
@@ -10,13 +10,14 @@ from database import get_db_session
 from database.models import User
 from exceptions.payments import (
     EmptyOrder,
+    InvalidWebhook,
     MoviesAlreadyPurchased,
     OrderNotFound,
     OrderNotPayable,
     PaymentGatewayError,
 )
-from payments.services import checkout_order_service
-from payments.stripe_gateway import get_stripe_client
+from payments.services import checkout_order_service, handle_stripe_event_service
+from payments.stripe_gateway import construct_webhook_event, get_stripe_client
 from schemas.payments import CheckoutResponseSchema
 
 logger = logging.getLogger(__name__)
@@ -62,3 +63,22 @@ async def checkout_order(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(e)
         ) from e
+
+
+@router.post("/webhook/")
+async def stripe_webhook(
+        request: Request,
+        db: ASession,
+        client: StripeClientDep,
+        stripe_signature: Annotated[str | None, Header()] = None,
+) -> dict[str, bool]:
+    try:
+        event = construct_webhook_event(client, await request.body(), stripe_signature)
+    except InvalidWebhook as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) from e
+
+    await handle_stripe_event_service(db=db, event=event)
+    return {"received": True}

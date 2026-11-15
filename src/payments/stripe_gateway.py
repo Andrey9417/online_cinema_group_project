@@ -6,7 +6,7 @@ import stripe
 
 from config.settings import settings
 from database.models.orders import Order
-from exceptions.payments import PaymentGatewayError
+from exceptions.payments import InvalidWebhook, PaymentGatewayError
 
 
 @lru_cache
@@ -16,6 +16,10 @@ def get_stripe_client() -> stripe.StripeClient:
 
 def to_cents(amount: Decimal) -> int:
     return int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def from_cents(amount: int) -> Decimal:
+    return Decimal(amount) / 100
 
 
 def build_checkout_session_params(order: Order, customer_email: str) -> dict:
@@ -60,3 +64,22 @@ async def retrieve_checkout_session(client: stripe.StripeClient, session_id: str
         return await client.v1.checkout.sessions.retrieve_async(session_id)
     except stripe.StripeError as e:
         raise PaymentGatewayError("Could not retrieve payment session, try again later") from e
+
+
+def construct_webhook_event(
+        client: stripe.StripeClient,
+        payload: bytes,
+        signature: str | None,
+) -> stripe.Event:
+    try:
+        return client.construct_event(payload, signature, settings.STRIPE_WEBHOOK_SECRET)
+    except (ValueError, stripe.SignatureVerificationError) as e:
+        raise InvalidWebhook("Invalid Stripe webhook") from e
+
+
+def get_order_id(checkout_session: stripe.checkout.Session) -> int | None:
+    metadata = checkout_session.to_dict().get("metadata") or {}
+    try:
+        return int(metadata["order_id"])
+    except (KeyError, ValueError):
+        return None
