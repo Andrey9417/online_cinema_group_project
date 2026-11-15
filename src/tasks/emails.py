@@ -4,6 +4,7 @@ from notifications.emails import (
     send_password_reset_email,
     send_comment_reply_email,
     send_comment_like_email,
+    send_movie_already_purchased_email,
 )
 
 
@@ -27,3 +28,8 @@ def send_comment_reply_email_task(
 @celery_app.task
 def send_comment_like_email_task(user_email: str, comment_text: str):
     send_comment_like_email(user_email, comment_text)
+
+
+@celery_app.task
+def send_movie_already_purchased_email_task(user_email: str, movie_title: str):
+    send_movie_already_purchased_email(user_email, movie_title)

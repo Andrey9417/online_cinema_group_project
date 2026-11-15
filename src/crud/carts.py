@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
-from database.models import Cart, CartItem
+from database.models import Cart, CartItem, OrderItem, Order, OrderStatusEnum
 from exceptions.carts import DBError, EntityNotFound, PgErrorCode, EntityAlreadyExists
 
 
@@ -117,3 +117,23 @@ async def is_movie_in_any_cart(db: AsyncSession, movie_id: int) -> bool:
     stmt = select(CartItem.id).where(CartItem.movie_id == movie_id).limit(1)
     result = await db.execute(stmt)
     return result.scalar_one_or_none() is not None
+
+
+async def has_user_purchased_movie(
+    db: AsyncSession,
+    user_id: int,
+    movie_id: int,
+) -> bool:
+    subquery = (
+        select(OrderItem.id)
+        .join(Order, OrderItem.order_id == Order.id)
+        .where(
+            Order.user_id == user_id,
+            OrderItem.movie_id == movie_id,
+            Order.status == OrderStatusEnum.PAID,
+        )
+    )
+    stmt = select(subquery.exists())
+    result = await db.execute(stmt)
+    return result.scalar_one()
+
