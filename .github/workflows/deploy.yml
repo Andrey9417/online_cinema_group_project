@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [develop]        # <- your branch name
+    branches: [aws_deploy]        # <- your branch name
 
 concurrency:
   group: deploy
