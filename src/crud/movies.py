@@ -12,8 +12,9 @@ from database.models.movies import (
     movie_genres,
     MovieRating,
 )
-from schemas.movies import MovieCreateSchema, MovieUpdateSchema
+from schemas.movies import MovieCreateSchema, MovieUpdateSchema, MovieSortField, SortOrder
 from collections.abc import Sequence
+from database.models.orders import Order, OrderItem, OrderStatusEnum
 
 SORT_FIELDS = {
     "price": Movie.price,
@@ -50,17 +51,16 @@ async def get_movie_by_id(db: AsyncSession, movie_id: int) -> Movie | None:
 
 async def get_movie_list(
         db: AsyncSession,
-        page: int = 1,
-        per_page: int = 10,
-        sort_by: str | None = None,
+        page: int,
+        per_page: int,
+        sort_by: MovieSortField = MovieSortField.year,
+        order: SortOrder = SortOrder.desc,
         search: str | None = None,
         year: int | None = None,
         min_imdb: float | None = None,
         price: Decimal | None = None,
-        certification_id: int | None = None
+        certification_id: int | None = None,
 ) -> tuple[Sequence[Movie], int]:
-    offset = (page - 1) * per_page
-
     conditions = []
 
     if year is not None:
@@ -71,7 +71,6 @@ async def get_movie_list(
         conditions.append(Movie.price <= price)
     if certification_id is not None:
         conditions.append(Movie.certification_id == certification_id)
-
     if search:
         pattern = f"%{search}%"
         conditions.append(
@@ -83,34 +82,23 @@ async def get_movie_list(
             )
         )
 
+    column = SORT_FIELDS[sort_by.value]
+    order_by = column.desc() if order == SortOrder.desc else column.asc()
+
     stmt = (
         select(Movie)
         .where(*conditions)
-        .offset(offset)
+        .order_by(order_by)
+        .offset((page - 1) * per_page)
         .limit(per_page)
     )
-
-    column = None
-    descending = False
-    if sort_by:
-        descending = sort_by.startswith("-")
-        field_name = sort_by.lstrip("-")
-        column = SORT_FIELDS.get(field_name)
-
-    if column is not None:
-        order = column.desc() if descending else column.asc()
-        stmt = stmt.order_by(order)
-    else:
-        stmt = stmt.order_by(Movie.id)
-
-    count_stmt = select(func.count(Movie.id)).where(*conditions)
     result = await db.execute(stmt)
     movies = result.scalars().all()
 
-    result_count = await db.execute(count_stmt)
-    count = result_count.scalar()
+    count_stmt = select(func.count()).select_from(Movie).where(*conditions)
+    total_items = await db.scalar(count_stmt)
 
-    return (movies, count)
+    return movies, total_items
 
 
 async def create_movie(db: AsyncSession, movie_data: MovieCreateSchema) -> Movie:
@@ -169,8 +157,6 @@ async def delete_movie(db: AsyncSession, movie_id: int) -> bool:
 
     if movie is None:
         return False
-
-    # TODO: заборонити видалення, якщо фільм куплений
 
     await db.delete(movie)
     await db.commit()
@@ -298,3 +284,17 @@ async def remove_rating(db: AsyncSession, user_id: int, movie_id: int) -> bool:
     )
     await db.commit()
     return result.rowcount > 0
+
+
+async def movie_is_purchased(db: AsyncSession, movie_id: int) -> bool:
+    stmt = (
+        select(OrderItem.id)
+        .join(Order, OrderItem.order_id == Order.id)
+        .where(
+            OrderItem.movie_id == movie_id,
+            Order.status == OrderStatusEnum.PAID,
+        )
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    return result.first() is not None
