@@ -1,25 +1,30 @@
 from collections.abc import Sequence
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Genre, Star, Director, Certification
+from config.dependencies import require_moderator
+from database.models import Genre, Star, Director, Certification, User
 from database.session import get_db_session
 from crud.reference import (
-    create_genre,
+    get_genre_by_id,
     get_genres,
-    create_director,
-    get_directors,
-    create_certification,
-    get_certifications,
+    create_genre,
+    update_genre,
+    delete_genre,
+    get_star_by_id,
     get_stars,
     create_star,
-    delete_genre,
-    update_genre,
     update_star,
     delete_star,
+    get_director_by_id,
+    get_directors,
+    create_director,
     update_director,
     delete_director,
+    get_certification_by_id,
+    get_certifications,
+    create_certification,
     update_certification,
     delete_certification,
 )
@@ -37,38 +42,51 @@ from schemas.movies import (
 router = APIRouter(tags=["reference"])
 
 
-@router.post(
-    "/genres/",
-    response_model=GenreSchema,
-    status_code=status.HTTP_201_CREATED
-)
-async def add_genre(
-        genre_data: GenreCreateSchema,
-        db: AsyncSession = Depends(get_db_session)
-) -> Genre:
-    return await create_genre(db, genre_data)
-
-
+# ---------- genres ----------
 @router.get("/genres/", response_model=list[GenreSchema])
 async def list_genres(
-        db: AsyncSession = Depends(get_db_session)
+        db: AsyncSession = Depends(get_db_session),
 ) -> Sequence[Genre]:
     return await get_genres(db)
 
 
-@router.put(
-    "/genres/{genre_id}/",
+@router.post(
+    "/genres/",
     response_model=GenreSchema,
+    status_code=status.HTTP_201_CREATED,
 )
-async def put_genre(
-        genre_id: int,
-        genre_data: GenreCreateSchema,
-        db: AsyncSession = Depends(get_db_session)
+async def add_genre(
+        data: GenreCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ) -> Genre:
-    genre = await update_genre(db, genre_id, genre_data)
-
+    genre = await create_genre(db, data.name)
     if genre is None:
-        raise HTTPException(404, "Genre not found")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Genre with this name already exists.",
+        )
+    return genre
+
+
+@router.put("/genres/{genre_id}/", response_model=GenreSchema)
+async def edit_genre(
+        genre_id: int,
+        data: GenreCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
+) -> Genre:
+    genre = await get_genre_by_id(db, genre_id)
+    if genre is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Genre not found.",
+        )
+    if not await update_genre(db, genre, data.name):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Genre with this name already exists.",
+        )
     return genre
 
 
@@ -76,43 +94,61 @@ async def put_genre(
 async def remove_genre(
         genre_id: int,
         db: AsyncSession = Depends(get_db_session),
-) -> None:
-    deleted = await delete_genre(db, genre_id)
-    if not deleted:
-        raise HTTPException(404, "Genre not found")
+        moderator: User = Depends(require_moderator),
+) -> Response:
+    if not await delete_genre(db, genre_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Genre not found.",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------- stars ----------
+@router.get("/stars/", response_model=list[StarSchema])
+async def list_stars(
+        db: AsyncSession = Depends(get_db_session),
+) -> Sequence[Star]:
+    return await get_stars(db)
 
 
 @router.post(
     "/stars/",
     response_model=StarSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
 )
 async def add_star(
-        star_data: StarCreateSchema, db: AsyncSession = Depends(get_db_session)
+        data: StarCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ) -> Star:
-    return await create_star(db, star_data)
-
-
-@router.get("/stars/", response_model=list[StarSchema])
-async def list_stars(
-        db: AsyncSession = Depends(get_db_session)
-) -> Sequence[Star]:
-    return await get_stars(db)
-
-
-@router.put(
-    "/stars/{star_id}/",
-    response_model=StarSchema,
-)
-async def put_star(
-        star_id: int,
-        star_data: StarCreateSchema,
-        db: AsyncSession = Depends(get_db_session)
-) -> Star:
-    star = await update_star(db, star_id, star_data)
-
+    star = await create_star(db, data.name)
     if star is None:
-        raise HTTPException(404, "Star not found")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Star with this name already exists.",
+        )
+    return star
+
+
+@router.put("/stars/{star_id}/", response_model=StarSchema)
+async def edit_star(
+        star_id: int,
+        data: StarCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
+) -> Star:
+    star = await get_star_by_id(db, star_id)
+    if star is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Star not found.",
+        )
+    if not await update_star(db, star, data.name):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Star with this name already exists.",
+        )
     return star
 
 
@@ -120,97 +156,144 @@ async def put_star(
 async def remove_star(
         star_id: int,
         db: AsyncSession = Depends(get_db_session),
-) -> None:
-    deleted = await delete_star(db, star_id)
-    if not deleted:
-        raise HTTPException(404, "Star not found")
+        moderator: User = Depends(require_moderator),
+) -> Response:
+    if not await delete_star(db, star_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Star not found.",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------- directors ----------
+@router.get("/directors/", response_model=list[DirectorSchema])
+async def list_directors(
+        db: AsyncSession = Depends(get_db_session),
+) -> Sequence[Director]:
+    return await get_directors(db)
 
 
 @router.post(
     "/directors/",
     response_model=DirectorSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
 )
 async def add_director(
-        director_data: DirectorCreateSchema,
-        db: AsyncSession = Depends(get_db_session)
+        data: DirectorCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ) -> Director:
-    return await create_director(db, director_data)
-
-
-@router.get("/directors/", response_model=list[DirectorSchema])
-async def list_directors(
-        db: AsyncSession = Depends(get_db_session)
-) -> Sequence[Director]:
-    return await get_directors(db)
-
-
-@router.put(
-    "/directors/{director_id}/",
-    response_model=DirectorSchema,
-)
-async def put_director(
-        director_id: int,
-        director_data: DirectorCreateSchema,
-        db: AsyncSession = Depends(get_db_session)
-) -> Director:
-    director = await update_director(db, director_id, director_data)
-
+    director = await create_director(db, data.name)
     if director is None:
-        raise HTTPException(404, "Director not found")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Director with this name already exists.",
+        )
     return director
 
 
-@router.delete("/directors/{director_id}/", status_code=status.HTTP_204_NO_CONTENT)
+@router.put("/directors/{director_id}/", response_model=DirectorSchema)
+async def edit_director(
+        director_id: int,
+        data: DirectorCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
+) -> Director:
+    director = await get_director_by_id(db, director_id)
+    if director is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Director not found.",
+        )
+    if not await update_director(db, director, data.name):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Director with this name already exists.",
+        )
+    return director
+
+
+@router.delete(
+    "/directors/{director_id}/",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def remove_director(
         director_id: int,
         db: AsyncSession = Depends(get_db_session),
-) -> None:
-    deleted = await delete_director(db, director_id)
-    if not deleted:
-        raise HTTPException(404, "Director not found")
+        moderator: User = Depends(require_moderator),
+) -> Response:
+    if not await delete_director(db, director_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Director not found.",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------- certifications ----------
+@router.get("/certifications/", response_model=list[CertificationSchema])
+async def list_certifications(
+        db: AsyncSession = Depends(get_db_session),
+) -> Sequence[Certification]:
+    return await get_certifications(db)
 
 
 @router.post(
     "/certifications/",
     response_model=CertificationSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
 )
 async def add_certification(
-        certification_data: CertificationCreateSchema,
-        db: AsyncSession = Depends(get_db_session)
+        data: CertificationCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ) -> Certification:
-    return await create_certification(db, certification_data)
-
-
-@router.get("/certifications/", response_model=list[CertificationSchema])
-async def list_certifications(
-        db: AsyncSession = Depends(get_db_session)
-) -> Sequence[Certification]:
-    return await get_certifications(db)
+    certification = await create_certification(db, data.name)
+    if certification is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Certification with this name already exists.",
+        )
+    return certification
 
 
 @router.put(
     "/certifications/{certification_id}/",
     response_model=CertificationSchema,
 )
-async def put_certification(
+async def edit_certification(
         certification_id: int,
-        certification_data: CertificationCreateSchema,
-        db: AsyncSession = Depends(get_db_session)
+        data: CertificationCreateSchema,
+        db: AsyncSession = Depends(get_db_session),
+        moderator: User = Depends(require_moderator),
 ) -> Certification:
-    certification = await update_certification(db, certification_id, certification_data)
-
+    certification = await get_certification_by_id(db, certification_id)
     if certification is None:
-        raise HTTPException(404, "Certification not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Certification not found.",
+        )
+    if not await update_certification(db, certification, data.name):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Certification with this name already exists.",
+        )
     return certification
 
 
-@router.delete("/certifications/{certification_id}/", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/certifications/{certification_id}/",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def remove_certification(
         certification_id: int,
         db: AsyncSession = Depends(get_db_session),
-) -> None:
-    deleted = await delete_certification(db, certification_id)
-    if not deleted:
-        raise HTTPException(404, "Certification not found")
+        moderator: User = Depends(require_moderator),
+) -> Response:
+    if not await delete_certification(db, certification_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Certification not found.",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

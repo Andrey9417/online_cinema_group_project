@@ -1,7 +1,6 @@
 from decimal import Decimal
 
 from sqlalchemy import select, func, or_, insert, delete, asc, desc
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from database.models.movies import (
@@ -262,10 +261,6 @@ async def get_genres_with_count(db: AsyncSession):
     return result.all()
 
 
-async def get_genre_by_id(db: AsyncSession, genre_id: int) -> Genre | None:
-    return await db.get(Genre, genre_id)
-
-
 async def get_movies_by_genre(
         db: AsyncSession, genre_id: int, page: int = 1, per_page: int = 10
 ) -> tuple[list[Movie], int]:
@@ -301,67 +296,5 @@ async def remove_rating(db: AsyncSession, user_id: int, movie_id: int) -> bool:
             MovieRating.movie_id == movie_id,
         )
     )
-    await db.commit()
-    return result.rowcount > 0
-
-
-async def create_genre(db: AsyncSession, name: str) -> Genre | None:
-    genre = Genre(name=name)
-    db.add(genre)
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        return None
-    await db.refresh(genre)
-    return genre
-
-
-async def update_genre(db: AsyncSession, genre: Genre, name: str) -> bool:
-    genre.name = name
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        return False
-    await db.refresh(genre)
-    return True
-
-
-async def delete_genre(db: AsyncSession, genre_id: int) -> bool:
-    result = await db.execute(delete(Genre).where(Genre.id == genre_id))
-    await db.commit()
-    return result.rowcount > 0
-
-
-async def get_star_by_id(db: AsyncSession, star_id: int) -> Star | None:
-    return await db.get(Star, star_id)
-
-
-async def create_star(db: AsyncSession, name: str) -> Star | None:
-    star = Star(name=name)
-    db.add(star)
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        return None
-    await db.refresh(star)
-    return star
-
-
-async def update_star(db: AsyncSession, star: Star, name: str) -> bool:
-    star.name = name
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        return False
-    await db.refresh(star)
-    return True
-
-
-async def delete_star(db: AsyncSession, star_id: int) -> bool:
-    result = await db.execute(delete(Star).where(Star.id == star_id))
     await db.commit()
     return result.rowcount > 0
