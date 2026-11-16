@@ -132,7 +132,7 @@ async def test_search_by_title(as_user, regular_user, make_movie):
     heat = await make_movie(name="Heat")
     await favorite(as_user, regular_user, alien, heat)
 
-    response = await as_user(regular_user).get(FAV, params={"search": "ali"})
+    response = await as_user(regular_user).get(FAV, params={"search": "LIEN"})
 
     assert names(response) == ["Alien"]
 
