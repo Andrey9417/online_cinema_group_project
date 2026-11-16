@@ -72,7 +72,6 @@ class S3StorageClient(S3StorageInterface):
         return result
 
     async def delete_files(self, keys: list[str]) -> None:
-        """Big delete"""
         if not keys:
             return
         try:

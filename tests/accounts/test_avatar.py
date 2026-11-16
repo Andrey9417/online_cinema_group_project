@@ -4,8 +4,10 @@ from unittest.mock import patch
 
 import pytest
 from PIL import Image
+from sqlalchemy import delete
 from sqlalchemy.exc import SQLAlchemyError
 
+from database.models.accounts import UserProfile
 from exceptions.storages import S3FileDeleteError, S3FileUploadError
 from main import app
 
@@ -110,14 +112,61 @@ async def test_s3_upload_error(client, user, auth_headers, fake_s3, fetch, db_se
     fake_s3.delete_file.assert_not_called()
 
 
-async def test_db_error_returns_500(client, user, auth_headers, fake_s3, db_session):
+async def test_db_error_returns_500_and_deletes_uploaded_file(client, user, auth_headers, fake_s3, db_session):
     headers = auth_headers(user)
 
     with patch.object(db_session, "commit", side_effect=SQLAlchemyError):
         response = await upload(client, headers, image_bytes("PNG"))
 
     assert response.status_code == 500
-    fake_s3.delete_file.assert_not_called()
+    uploaded_key = fake_s3.upload_file.await_args.args[0]
+    fake_s3.delete_file.assert_awaited_once_with(uploaded_key)
+
+
+async def test_db_error_keeps_old_avatar(client, user, auth_headers, fake_s3, fetch, db_session):
+    user_id = user.id  # the failed commit's rollback expires `user`; reading it later would lazy-load
+    await set_avatar(db_session, fetch, user_id, OLD_KEY)
+    headers = auth_headers(user)
+
+    with patch.object(db_session, "commit", side_effect=SQLAlchemyError):
+        response = await upload(client, headers, image_bytes("PNG"))
+
+    assert response.status_code == 500
+    # only the new upload is cleaned up; the still-referenced old avatar stays
+    fake_s3.delete_file.assert_awaited_once_with(fake_s3.upload_file.await_args.args[0])
+    assert (await fetch.profile(user_id)).avatar == OLD_KEY
+
+
+async def test_db_error_cleanup_failure_still_returns_500(client, user, auth_headers, fake_s3, db_session):
+    fake_s3.delete_file.side_effect = S3FileDeleteError("boom")
+    headers = auth_headers(user)
+
+    with patch.object(db_session, "commit", side_effect=SQLAlchemyError):
+        response = await upload(client, headers, image_bytes("PNG"))
+
+    assert response.status_code == 500
+    fake_s3.delete_file.assert_awaited_once()
+
+
+async def test_missing_profile_returns_404_and_deletes_uploaded_file(client, user, auth_headers, fake_s3, db_session):
+    await db_session.execute(delete(UserProfile).where(UserProfile.user_id == user.id))
+    await db_session.commit()
+
+    response = await upload(client, auth_headers(user), image_bytes("PNG"))
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Profile not found"
+    fake_s3.delete_file.assert_awaited_once_with(fake_s3.upload_file.await_args.args[0])
+
+
+async def test_missing_profile_cleanup_failure_still_returns_404(client, user, auth_headers, fake_s3, db_session):
+    await db_session.execute(delete(UserProfile).where(UserProfile.user_id == user.id))
+    await db_session.commit()
+    fake_s3.delete_file.side_effect = S3FileDeleteError("boom")
+
+    response = await upload(client, auth_headers(user), image_bytes("PNG"))
+
+    assert response.status_code == 404
 
 
 async def test_fake_image_rejected(client, user, auth_headers, fake_s3):

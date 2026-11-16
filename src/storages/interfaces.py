@@ -38,8 +38,23 @@ class S3StorageInterface(ABC):
 
     @abstractmethod
     async def list_files(self, prefix: str) -> list[tuple[str, datetime]]:
-        pass
+        """
+        Lists all files whose key starts with the prefix, across all result pages.
+
+        :param prefix: Key prefix to filter by, e.g. "avatars/".
+        :return: (key, last_modified) pairs; last_modified is timezone-aware (UTC).
+            An empty list if nothing matches.
+        :raises S3FileListError: if the storage call fails.
+        """
 
     @abstractmethod
     async def delete_files(self, keys: list[str]) -> None:
-        pass
+        """
+        Deletes many files, batched by the storage's per-request limit.
+        Deleting a missing file is not an error. An empty list makes no storage call.
+
+        :param keys: Object keys in the bucket.
+        :raises S3FileDeleteError: if a storage call fails or the storage reports
+            that some keys could not be deleted. Batches sent before the failure
+            stay deleted.
+        """
