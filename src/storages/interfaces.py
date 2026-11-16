@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Union
 
 
@@ -34,3 +35,11 @@ class S3StorageInterface(ABC):
         :param file_name: Object key in the bucket.
         :raises S3FileDeleteError: if the storage call fails.
         """
+
+    @abstractmethod
+    async def list_files(self, prefix: str) -> list[tuple[str, datetime]]:
+        pass
+
+    @abstractmethod
+    async def delete_files(self, keys: list[str]) -> None:
+        pass

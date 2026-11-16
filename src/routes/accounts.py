@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 from uuid import uuid4
 
@@ -24,6 +25,8 @@ from schemas.accounts import UserRegistrationResponseSchema, UserRegistrationReq
 from storages import S3StorageInterface
 from tasks.emails import send_activation_email_task, send_password_reset_email_task
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 ASession = Annotated[AsyncSession, Depends(get_db_session)]
 
@@ -218,15 +221,23 @@ async def upload_profile_avatar(
         profile, old_avatar = await update_profile_avatar(session, user.id, avatar_key)
     except S3FileUploadError as e:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            status_code=503,
             detail="Avatar not uploaded, try again later"
         ) from e
     except ProfileDoesNotExist as e:
+        try:
+            await s3.delete_file(avatar_key)
+        except S3FileDeleteError:
+            logger.warning("Failed to delete avatar %s", avatar_key)
         raise HTTPException(
             status_code=404,
             detail=str(e)
         ) from e
     except SomethingWentWrong as e:
+        try:
+            await s3.delete_file(avatar_key)
+        except S3FileDeleteError:
+            logger.warning("Failed to delete avatar %s", avatar_key)
         raise HTTPException(
             status_code=500,
             detail=str(e)
@@ -235,8 +246,7 @@ async def upload_profile_avatar(
         try:  # failed delete should not prevent new avatar upload
             await s3.delete_file(old_avatar)
         except S3FileDeleteError:
-            # dunno what to do here
-            ...
+            logger.warning("Failed to delete avatar %s", old_avatar)
     return await profile_response(profile, s3)
 
 
