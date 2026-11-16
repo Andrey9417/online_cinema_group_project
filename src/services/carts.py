@@ -5,9 +5,9 @@ from crud.carts import (
     create_cart,
     clear_cart,
     remove_movie_from_cart,
-    has_user_purchased_movie
+    has_user_purchased_movie, add_movie_to_cart
 )
-from database.models import Cart, User, UserGroupEnum, Movie, CartItem
+from database.models import Cart, User, UserGroupEnum, Movie
 from exceptions.carts import EntityAlreadyExists, DBError, EntityNotFound, StaffRequired, BadRequest
 from tasks.emails import send_movie_already_purchased_email_task
 
@@ -70,18 +70,17 @@ async def add_item_to_cart(
         send_movie_already_purchased_email_task.delay(user_email, movie.name)
         raise BadRequest("Movie has already been purchased.")
 
-    cart = await get_cart_by_user(db=db, user_id=user_id)
-    if cart is None:
-        cart = Cart(user_id=user_id)
-        db.add(cart)
-        await db.flush()
-    elif any(item.movie_id == movie_id for item in cart.items):
-        raise EntityAlreadyExists("Movie is already in the cart.")
+    cart = await get_or_create_cart(db=db, user_id=user_id)
 
-    db.add(CartItem(cart_id=cart.id, movie_id=movie_id))
-    await db.commit()
+    await add_movie_to_cart(db=db, cart_id=cart.id, movie_id=movie_id)
 
-    return await get_cart_by_user(db=db, user_id=user_id)
+    db.expire(cart)
+
+    updated_cart = await get_cart_by_user(db=db, user_id=user_id)
+    if updated_cart is None:
+        raise DBError("Failed to fetch updated cart.")
+
+    return updated_cart
 
 
 async def moderator_get_cart_by_user_id(

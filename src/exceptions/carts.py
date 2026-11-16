@@ -20,7 +20,7 @@ class DBError(CartBaseError):
     pass
 
 
-class BadRequest(DBError):
+class BadRequest(CartBaseError):
     pass
 
 
