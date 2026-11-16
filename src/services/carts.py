@@ -101,3 +101,10 @@ async def moderator_get_cart_by_user_id(
         raise EntityNotFound("Cart not found.")
 
     return cart
+
+
+async def check_order_status(
+        db: AsyncSession,
+        movie_id: int,
+):
+    pass
