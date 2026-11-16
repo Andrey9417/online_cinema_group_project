@@ -4,3 +4,7 @@ class S3FileUploadError(Exception):
 
 class S3FileDeleteError(Exception):
     pass
+
+
+class S3FileListError(Exception):
+    pass

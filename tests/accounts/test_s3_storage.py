@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -5,7 +6,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from config.dependencies import get_s3_storage_client
 from config.settings import settings
-from exceptions.storages import S3FileDeleteError, S3FileUploadError
+from exceptions.storages import S3FileDeleteError, S3FileListError, S3FileUploadError
 from storages import S3StorageClient
 
 
@@ -80,6 +81,118 @@ async def test_delete_file_error(storage, s3, error):
 
     with pytest.raises(S3FileDeleteError):
         await storage.delete_file("a.png")
+
+
+def pages(*pages_, error=None):
+    """Stands in for `paginator.paginate(...)`: an async iterator over result pages."""
+    async def _gen():
+        for page in pages_:
+            yield page
+        if error:
+            raise error
+    return _gen()
+
+
+@pytest.fixture
+def paginator(s3):
+    """`get_paginator` is a plain (not awaited) method on the real client."""
+    paginator = MagicMock()
+    s3.get_paginator = MagicMock(return_value=paginator)
+    return paginator
+
+
+T1 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+T2 = datetime(2026, 1, 2, tzinfo=timezone.utc)
+
+
+async def test_list_files_merges_pages(storage, s3, paginator):
+    paginator.paginate.return_value = pages(
+        {"Contents": [{"Key": "avatars/1/a.png", "LastModified": T1}]},
+        {"Contents": [{"Key": "avatars/2/b.png", "LastModified": T2}]},
+    )
+
+    result = await storage.list_files("avatars/")
+
+    assert result == [("avatars/1/a.png", T1), ("avatars/2/b.png", T2)]
+    s3.get_paginator.assert_called_once_with("list_objects_v2")
+    paginator.paginate.assert_called_once_with(Bucket="bucket", Prefix="avatars/")
+
+
+async def test_list_files_page_without_contents(storage, paginator):
+    paginator.paginate.return_value = pages({"KeyCount": 0})
+
+    assert await storage.list_files("avatars/") == []
+
+
+@pytest.mark.parametrize("error", [client_error("ListObjectsV2"), BotoCoreError()])
+async def test_list_files_error(storage, paginator, error):
+    paginator.paginate.return_value = pages(
+        {"Contents": [{"Key": "a.png", "LastModified": T1}]}, error=error
+    )
+
+    with pytest.raises(S3FileListError):
+        await storage.list_files("avatars/")
+
+
+async def test_delete_files(storage, s3):
+    s3.delete_objects.return_value = {}
+
+    await storage.delete_files(["a.png", "b.png"])
+
+    s3.delete_objects.assert_awaited_once_with(
+        Bucket="bucket",
+        Delete={"Objects": [{"Key": "a.png"}, {"Key": "b.png"}], "Quiet": True},
+    )
+
+
+async def test_delete_files_batches_by_1000(storage, s3):
+    s3.delete_objects.return_value = {}
+    keys = [f"avatars/{i}.png" for i in range(2500)]
+
+    await storage.delete_files(keys)
+
+    batches = [call.kwargs["Delete"]["Objects"] for call in s3.delete_objects.await_args_list]
+    assert [len(b) for b in batches] == [1000, 1000, 500]
+    assert [o["Key"] for b in batches for o in b] == keys  # nothing lost or repeated
+    storage._session.client.assert_called_once()  # one client for all batches
+
+
+async def test_delete_files_empty_makes_no_call(storage, s3):
+    await storage.delete_files([])
+
+    storage._session.client.assert_not_called()
+    s3.delete_objects.assert_not_called()
+
+
+async def test_delete_files_reported_errors_raise(storage, s3):
+    """S3 answers 200 with per-key `Errors`; those must not be silently ignored."""
+    s3.delete_objects.return_value = {
+        "Errors": [{"Key": "b.png", "Code": "AccessDenied", "Message": "nope"}]
+    }
+
+    with pytest.raises(S3FileDeleteError, match="b.png"):
+        await storage.delete_files(["a.png", "b.png"])
+
+
+async def test_delete_files_errors_in_first_batch_stop_the_rest(storage, s3):
+    s3.delete_objects.side_effect = [
+        {"Errors": [{"Key": "avatars/0.png", "Code": "InternalError", "Message": "x"}]},
+        {},
+        {},
+    ]
+
+    with pytest.raises(S3FileDeleteError):
+        await storage.delete_files([f"avatars/{i}.png" for i in range(2500)])
+
+    assert s3.delete_objects.await_count == 1
+
+
+@pytest.mark.parametrize("error", [client_error("DeleteObjects"), BotoCoreError()])
+async def test_delete_files_error(storage, s3, error):
+    s3.delete_objects.side_effect = error
+
+    with pytest.raises(S3FileDeleteError):
+        await storage.delete_files(["a.png"])
 
 
 async def test_get_s3_storage_client_uses_settings():

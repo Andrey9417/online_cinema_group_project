@@ -35,6 +35,9 @@ class Settings(BaseSettings):
 
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # protects newly uploaded files from being utterly destroyed by Celery task
+    AVATAR_ORPHAN_GRACE_MINUTES: int = 60
+
     @property
     def DATABASE_URL(self) -> str:
         return (
