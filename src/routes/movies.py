@@ -37,15 +37,40 @@ from schemas.movies import (
 router = APIRouter(prefix="/movies", tags=["movies"])
 
 
-@router.get("/favorites/", response_model=MovieListResponseSchema)
+@router.get(
+    "/favorites/",
+    response_model=MovieListResponseSchema,
+    summary="List my favorite movies",
+    description=(
+        "Returns the current user's favorites with pagination. "
+        "Supports search (title, description, actor, director), "
+        "filters (year, min_imdb) and sorting."
+    ),
+)
 async def list_favorites(
-        page: int = Query(1, ge=1),
-        per_page: int = Query(10, ge=1, le=20),
-        search: str | None = Query(None),
-        year: int | None = Query(None),
-        min_imdb: float | None = Query(None, ge=0, le=10),
-        sort_by: Literal["price", "year", "imdb", "popularity"] = "year",
-        order: Literal["asc", "desc"] = "desc",
+        page: int = Query(
+            1, ge=1, description="Page number (1-based index)"
+        ),
+        per_page: int = Query(
+            10, ge=1, le=20, description="Number of items per page"
+        ),
+        search: str | None = Query(
+            None,
+            description="Substring of title, description, actor or director",
+        ),
+        year: int | None = Query(
+            None, description="Exact release year"
+        ),
+        min_imdb: float | None = Query(
+            None, ge=0, le=10, description="Minimum IMDb rating"
+        ),
+        sort_by: Literal["price", "year", "imdb", "popularity"] = Query(
+            "year",
+            description="Sort field (popularity = number of IMDb votes)",
+        ),
+        order: Literal["asc", "desc"] = Query(
+            "desc", description="Sort direction"
+        ),
         db: AsyncSession = Depends(get_db_session),
         current_user: User = Depends(get_current_user),
 ):
@@ -65,7 +90,15 @@ async def list_favorites(
     }
 
 
-@router.get("/genres/", response_model=list[GenreWithCountSchema])
+@router.get(
+    "/genres/",
+    response_model=list[GenreWithCountSchema],
+    summary="List genres with movie counts",
+    description=(
+        "All genres with the number of movies in each. Use "
+        "GET /movies/genres/{genre_id}/movies/ to see a genre's movies."
+    ),
+)
 async def list_genres(db: AsyncSession = Depends(get_db_session)):
     return await get_genres_with_count(db)
 
@@ -200,6 +233,12 @@ async def edit_movie(
     "/{movie_id}/favorite/",
     response_model=MessageResponseSchema,
     status_code=status.HTTP_201_CREATED,
+    summary="Add a movie to favorites",
+    responses={
+        401: {"description": "Not authenticated"},
+        404: {"description": "Movie not found"},
+        409: {"description": "Movie is already in favorites"},
+    },
 )
 async def add_to_favorites(
         movie_id: int,
@@ -215,7 +254,15 @@ async def add_to_favorites(
     return {"detail": "Movie added to favorites."}
 
 
-@router.delete("/{movie_id}/favorite/", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{movie_id}/favorite/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove a movie from favorites",
+    responses={
+        401: {"description": "Not authenticated"},
+        404: {"description": "Movie is not in favorites"},
+    },
+)
 async def remove_from_favorites(
         movie_id: int,
         db: AsyncSession = Depends(get_db_session),
@@ -227,7 +274,16 @@ async def remove_from_favorites(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put("/{movie_id}/rating/", response_model=MessageResponseSchema)
+@router.put(
+    "/{movie_id}/rating/",
+    response_model=MessageResponseSchema,
+    summary="Rate a movie (1-10)",
+    description="Creates your rating or updates the existing one.",
+    responses={
+        401: {"description": "Not authenticated"},
+        404: {"description": "Movie not found"},
+    },
+)
 async def rate_movie(
         movie_id: int,
         data: MovieRatingSchema,
@@ -241,7 +297,15 @@ async def rate_movie(
     return {"detail": "Rating saved."}
 
 
-@router.delete("/{movie_id}/rating/", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{movie_id}/rating/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove my rating",
+    responses={
+        401: {"description": "Not authenticated"},
+        404: {"description": "Rating not found"},
+    },
+)
 async def remove_movie_rating(
         movie_id: int,
         db: AsyncSession = Depends(get_db_session),
@@ -253,7 +317,12 @@ async def remove_movie_rating(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/genres/{genre_id}/movies/", response_model=MovieListResponseSchema)
+@router.get(
+    "/genres/{genre_id}/movies/",
+    response_model=MovieListResponseSchema,
+    summary="List movies of a genre",
+    responses={404: {"description": "Genre not found"}},
+)
 async def list_genre_movies(
         genre_id: int,
         page: int = Query(1, ge=1),
