@@ -1,5 +1,13 @@
 # Online Cinema
 
+prod link: https://online-cinema-team.work.gd/docs
+
+access with credentials:
+API_USER=mate_user
+API_PASSWORD=password
+
+###
+
 FastAPI + async SQLAlchemy + Alembic + PostgreSQL, run in Docker, dependencies managed with Poetry.
 
 ## 1. Local setup (for the IDE, so there are no import errors)
