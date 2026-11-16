@@ -52,3 +52,10 @@ def send_comment_reply_email(user_email: str, original_text: str, reply_text: st
 def send_comment_like_email(user_email: str, comment_text: str):
     html = jinja.get_template("comment_like.html").render(comment_text=comment_text)
     send_email(user_email, "Your comment got a like", html)
+
+
+def send_movie_already_purchased_email(user_email: str, movie_title: str) -> None:
+    html = jinja.get_template("already_purchased.html").render(
+        movie_title=movie_title,
+    )
+    send_email(user_email, "Movie already purchased", html)

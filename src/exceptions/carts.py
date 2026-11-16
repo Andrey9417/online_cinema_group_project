@@ -20,6 +20,10 @@ class DBError(CartBaseError):
     pass
 
 
+class BadRequest(CartBaseError):
+    pass
+
+
 class EntityNotFound(DBError):
     pass
 

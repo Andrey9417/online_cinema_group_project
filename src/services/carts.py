@@ -5,11 +5,11 @@ from crud.carts import (
     create_cart,
     clear_cart,
     remove_movie_from_cart,
-    add_movie_to_cart
+    has_user_purchased_movie, add_movie_to_cart
 )
-from crud.movies import get_movie_by_id
-from database.models import Cart, User, UserGroupEnum
-from exceptions.carts import EntityAlreadyExists, DBError, EntityNotFound, StaffRequired
+from database.models import Cart, User, UserGroupEnum, Movie
+from exceptions.carts import EntityAlreadyExists, DBError, EntityNotFound, StaffRequired, BadRequest
+from tasks.emails import send_movie_already_purchased_email_task
 
 
 async def get_or_create_cart(db: AsyncSession, user_id: int) -> Cart:
@@ -57,30 +57,30 @@ async def delete_movie_from_cart(
 
 
 async def add_item_to_cart(
-        db: AsyncSession,
-        user_id: int,
-        movie_id: int,
+    db: AsyncSession,
+    user_id: int,
+    user_email: str,
+    movie_id: int,
 ) -> Cart:
-
-    movie = await get_movie_by_id(db=db, movie_id=movie_id)
-
+    movie = await db.get(Movie, movie_id)
     if movie is None:
         raise EntityNotFound("Movie not found.")
 
+    if await has_user_purchased_movie(db=db, user_id=user_id, movie_id=movie_id):
+        send_movie_already_purchased_email_task.delay(user_email, movie.name)
+        raise BadRequest("Movie has already been purchased.")
+
     cart = await get_or_create_cart(db=db, user_id=user_id)
 
-    if any(item.movie_id == movie_id for item in cart.items):
-        raise EntityAlreadyExists("Movie already in cart.")
-
-    await add_movie_to_cart(
-        db=db, cart_id=cart.id, movie_id=movie.id,
-    )
+    await add_movie_to_cart(db=db, cart_id=cart.id, movie_id=movie_id)
 
     db.expire(cart)
 
-    cart = await get_cart_by_user(db=db, user_id=user_id)
+    updated_cart = await get_cart_by_user(db=db, user_id=user_id)
+    if updated_cart is None:
+        raise DBError("Failed to fetch updated cart.")
 
-    return cart
+    return updated_cart
 
 
 async def moderator_get_cart_by_user_id(

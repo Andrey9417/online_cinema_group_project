@@ -7,7 +7,7 @@ from starlette import status
 from config.dependencies import get_current_user
 from database import get_db_session
 from database.models import User, Cart
-from exceptions.carts import EntityNotFound, DBError, EntityAlreadyExists, StaffRequired
+from exceptions.carts import EntityNotFound, DBError, EntityAlreadyExists, StaffRequired, BadRequest
 from schemas.carts import CartResponseSchema, CartItemCreateSchema
 from services.carts import get_or_create_cart, clear_user_cart, delete_movie_from_cart, add_item_to_cart, \
     moderator_get_cart_by_user_id
@@ -122,7 +122,8 @@ async def add_movie_to_my_cart(
         return await add_item_to_cart(
             db=db,
             user_id=current_user.id,
-            movie_id=data.movie_id
+            movie_id=data.movie_id,
+            user_email=current_user.email
         )
     except EntityNotFound as exc:
         raise HTTPException(
@@ -133,6 +134,11 @@ async def add_movie_to_my_cart(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
+        ) from exc
+    except BadRequest as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc)
         ) from exc
     except DBError as exc:
         raise HTTPException(
