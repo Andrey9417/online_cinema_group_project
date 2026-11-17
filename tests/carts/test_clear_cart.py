@@ -62,4 +62,3 @@ async def test_clear_cart_requires_authentication(client):
     response = await client.delete(URL)
 
     assert response.status_code in (401, 403)
-
