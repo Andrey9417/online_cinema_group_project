@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 
 from crud.carts import (
     add_movie_to_cart,
@@ -165,3 +165,4 @@ async def test_has_user_purchased_movie_false_without_orders(
     db_session, user, movie
 ):
     assert await has_user_purchased_movie(db_session, user.id, movie.id) is False
+

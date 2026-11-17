@@ -1,8 +1,8 @@
-from unittest.mock import AsyncMock
+﻿from unittest.mock import AsyncMock
 
 import pytest
 
-URL = "/carts/items"
+URL = "/api/v1/carts/items"
 
 
 @pytest.mark.asyncio
@@ -121,3 +121,4 @@ async def test_add_movie_requires_authentication(client, movie):
     response = await client.post(URL, json={"movie_id": movie.id})
 
     assert response.status_code in (401, 403)
+

@@ -1,6 +1,6 @@
-import pytest
+﻿import pytest
 
-URL = "/carts/items"
+URL = "/api/v1/carts/items"
 
 
 @pytest.mark.asyncio
@@ -62,3 +62,4 @@ async def test_clear_cart_requires_authentication(client):
     response = await client.delete(URL)
 
     assert response.status_code in (401, 403)
+

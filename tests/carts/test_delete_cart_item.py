@@ -1,6 +1,6 @@
-import pytest
+﻿import pytest
 
-URL = "/carts/items"
+URL = "/api/v1/carts/items"
 
 
 @pytest.mark.asyncio
@@ -87,3 +87,4 @@ async def test_delete_movie_requires_authentication(client, movie):
     response = await client.delete(f"{URL}/{movie.id}")
 
     assert response.status_code in (401, 403)
+

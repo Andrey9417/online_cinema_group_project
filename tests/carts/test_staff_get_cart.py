@@ -1,6 +1,6 @@
-import pytest
+﻿import pytest
 
-URL = "/carts/users"
+URL = "/api/v1/carts/users"
 
 
 @pytest.mark.asyncio
@@ -81,3 +81,4 @@ async def test_staff_get_cart_requires_authentication(client, user):
     response = await client.get(f"{URL}/{user.id}")
 
     assert response.status_code in (401, 403)
+
