@@ -93,7 +93,11 @@ async def get_order_detail(
     return order
 
 
-@router.post("/orders", response_model=CreateOrderResponseSchema)
+@router.post(
+    "/orders",
+    response_model=CreateOrderResponseSchema,
+    status_code=status.HTTP_201_CREATED
+)
 async def create_order(db: SessionDP, user: UserDP):
     """
     Create a new order from the authenticated user's shopping cart.
